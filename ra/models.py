@@ -14,6 +14,9 @@ from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
 import datetime, os, uuid, math
 
+# general ra contact
+FAS_CONTACT = "fasra@sfu.ca"
+
 HIRING_CATEGORY_CHOICES = (
     ('U', 'Undergrad'),
     ('E', 'Grad Employee'),
@@ -245,12 +248,13 @@ DEFAULT_LETTER_NCLS = '\n\n'.join([
     ])
 
 DEFAULT_LETTER_TRAINING = "Mandatory SFU Safety Orientation Training: WorkSafe BC requires all new graduate students to take and complete safety orientation training.  SFU has a short online module you can take here: https://canvas.sfu.ca/enroll/RR8WDW, and periodically offers classroom sessions of the same material.  You shall be informed if any additional training is required.\n\n"
+DEFAULT_LETTER_PIDA = """Public Interest Disclosure Act Training - As of December 1, 2024, the provincial government enacted the Public Interest Disclosure Act (PIDA) at research universities in B.C. including SFU. PIDA is provincial legislation that provides a safe, legally protected way for all current and former BC public sector employees to report serious or systemic issues of wrongdoing in the public sector. Employees are required to complete a training module that covers the protections that the law provides for protecting public sector employees who witness or know of serious wrongdoing occurring in their workplace, and outlines the options available for reporting wrongdoing at SFU and to the Ombudsperson. To access the training, please visit: https://learn.bcombudsperson.ca/speaking-up-safely/\n\n"""
 
 DEFAULT_LETTER_CONCLUDE = "If you accept the terms of this letter, please sign and return the letter, retaining the original for your records.\n\n"
 DEFAULT_LETTER_CONCLUDE_NC = "If you accept the terms of this appointment, please sign and return the letter, retaining the original for your records.\n\n"
 
-DEFAULT_LETTER_NCH = DEFAULT_LETTER_NCH_INTRO + DEFAULT_LETTER_NCH + DEFAULT_LETTER_CONCLUDE_NC
-DEFAULT_LETTER_NCBW = DEFAULT_LETTER_NCBW_INTRO + DEFAULT_LETTER_NCBW + DEFAULT_LETTER_CONCLUDE_NC
+DEFAULT_LETTER_NCH = DEFAULT_LETTER_NCH_INTRO + DEFAULT_LETTER_NCH + DEFAULT_LETTER_PIDA + DEFAULT_LETTER_CONCLUDE_NC
+DEFAULT_LETTER_NCBW = DEFAULT_LETTER_NCBW_INTRO + DEFAULT_LETTER_NCBW + DEFAULT_LETTER_PIDA + DEFAULT_LETTER_CONCLUDE_NC
 DEFAULT_LETTER_NCLS = DEFAULT_LETTER_NCLS_INTRO + DEFAULT_LETTER_NCLS + DEFAULT_LETTER_CONCLUDE_NC
 DEFAULT_LETTER_GRASLE_INSIDE_CAN = DEFAULT_LETTER_GRASLE_INTRO_INSIDE_CAN + DEFAULT_LETTER_GRAS + DEFAULT_LETTER_TRAINING + DEFAULT_LETTER_CONCLUDE
 DEFAULT_LETTER_GRASBW = DEFAULT_LETTER_GRASBW_INTRO + DEFAULT_LETTER_GRAS + DEFAULT_LETTER_TRAINING + DEFAULT_LETTER_CONCLUDE
@@ -259,7 +263,7 @@ DEFAULT_LETTER_SCIENCE_ALIVE_INTRO = '\n\n'.join([
     """We are pleased to offer you a temporary appointment with Applied Sciences Outreach (with Science AL!VE). Please find enclosed your appointment letter along with the General Privacy and Confidentiality form. Please review and sign where applicable.""",
     """Name: %(name)s (“Employee”)\nPosition Title: %(position)s\nReports to: Coordinator, Outreach Programs\nDuration: %(start_date)s to %(end_date)s\nRemuneration: $%(gross_hourly)s per hour + 4 percent in lieu of vacation time\nHours of work: We expect these hours not to exceed %(biweekly_hours)s hours bi-weekly. Work hours will be assigned and confirmed as needed by Coordinator, Outreach programs. Employees must report total number of work hours to their supervisor/delegate on a bi-weekly basis. No overtime hours may be worked without express pre-approval in writing from your supervisor.\nWork Location: [ENTER WORK LOCATION HERE]""",
     """<u>About the position</u>\n[ENTER POSITION DETAILS HERE]""",
-    """Responsibilities include, but are not limited to:\n\u2022 %(duties)s""",
+    """Your responsibilities include, but are not limited to:\n\u2022 %(duties)s""",
     """<u>Terms of Contract</u>\n\u2022 You will be provided with vacation pay of four (4) percent (equivalent to 10 days vacation per annum) that will be automatically added to the above hourly rate in each bi-weekly pay period.
     \u2022 Termination of this appointment may be initiated by either party giving two (2) week notice, except in the case of termination for cause.
     \u2022 You are expected to adhere to the employer's policies and procedures at all times while performing your “Duties”.""",
@@ -268,6 +272,7 @@ DEFAULT_LETTER_SCIENCE_ALIVE_INTRO = '\n\n'.join([
     """<u>Policies</u>\nYou are subject to and must comply with all applicable University policies and procedures including but not limited to:\nGP 18 Human Rights Policy\nGP 37 Conflict of Interest\nGP 44 Sexual Violence and Misconduct Prevention, Education and Support\nGP 47 Bullying and Harassment Policy\nI 10.04 Access to Information and Protection of Privacy\nR 30.03 Intellectual Property Policy""",
     """<u>Mandatory Training</u>\nSFU Safety Orientation Training - WorkSafe BC requires all new employees to take and complete safety orientation training.  SFU has a short online module you can take here: https://canvas.sfu.ca/enroll/RR8WDW, and periodically offers classroom sessions of the same material. \n\n"""
     """SFU Respectful Working and Learning Environments Training - Simon Fraser University is committed to creating a diverse, equitable and inclusive community where all feel welcome, accepted and appreciated. It will take all of us, working together to maintain an environment of inclusive excellence that we can be proud to be part of. To learn more please visit SFU Inclusive Excellence: https://www.sfu.ca/edi/actions/inclusive-excellence.html. To support this, a training module has been developed for SFU community members to remind us all about our responsibilities in contributing to respectful learning, research and work environments, help us understand what bullying and harassment behaviours are, and ensure we know where to turn for help. The training supports SFU's Bullying & Harassment policy (GP 47) and is aligned with WorkSafeBC requirements. You can access the module here: https://canvas.sfu.ca/enroll/DLXJPD.\n\n"""
+    """Public Interest Disclosure Act Training - As of December 1, 2024, the provincial government enacted the Public Interest Disclosure Act (PIDA) at research universities in B.C. including SFU. PIDA is provincial legislation that provides a safe, legally protected way for all current and former BC public sector employees to report serious or systemic issues of wrongdoing in the public sector. Employees are required to complete a training module that covers the protections that the law provides for protecting public sector employees who witness or know of serious wrongdoing occurring in their workplace, and outlines the options available for reporting wrongdoing at SFU and to the Ombudsperson. To access the training, please visit: https://learn.bcombudsperson.ca/speaking-up-safely/\n\n"""
     """You shall be informed if any additional training is required.\n\n"""
 ])
 
@@ -294,11 +299,8 @@ GRAS_PAYMENT_METHOD_CHOICES = (
 )
 
 RA_PAYMENT_METHOD_CHOICES = (
-    ('BW', 'Bi-weekly salary (The Appointee is entitled to a minimum of 10 vacation days a year per FTE. Vacation time will be prorated' +
-    ' based on the appointment terms. An additional 11% will be charged for statutory benefits.)'),
-    ('H', 'Hourly (4% vacation pay will be deducted from the project in addition to 11% for statutory benefits. Must submit biweekly' +
-    ' timesheets in order for the Appointee to be paid.)'),
-    ('LS', 'Lump Sum Amount')
+    ('BW', 'Yes (Salaried - The Appointee is entitled to a minimum of 10 vacation days a year. Vacation time will be pro-rated based on the appointment terms.)'),
+    ('H', 'No (Hourly - The Appointee will receive 4% vacation pay. Timesheet must be submitted biweekly for the Appointee to be paid.)')
 )
 
 NC_PAYMENT_METHOD_CHOICES = (
@@ -329,8 +331,7 @@ RA_VACATION_PAY_CHOICES = (
 )
 
 RA_BENEFITS_CHOICES = (
-    ('Y', "Yes (The cost will be shared 50/50 between employee and employer and eligibility depends on your funding source. " +
-    "Cost depends on Appointee's dependents and family size.)"),
+    ('Y', "Yes (The cost will be shared 75/25 between employer and employee)."),
     ('NE', 'No - My grant is not eligible.'),
     ('N', 'No')
 )
@@ -503,8 +504,8 @@ class RARequest(models.Model):
     position = models.CharField(max_length=64, default='', null=True, blank=True)
     student = models.CharField(max_length=80, default=None, null=True, choices=STUDENT_TYPE)
     coop = models.BooleanField(null=True, blank=True)
-    swpp = config_property('swpp', default=False)
-    usra = config_property('usra', default=False)
+    swpp = config_property('swpp', default=False) # not currently asked
+    usra = config_property('usra', default=False) # not currently asked
     mitacs = models.BooleanField(null=True, blank=True)
     research = models.BooleanField(null=True, blank=True)
     thesis = models.BooleanField(null=True, blank=True)
@@ -835,6 +836,12 @@ class RARequest(models.Model):
         else:
             biweekly_hours = str(hours) + " hours"  
         return biweekly_hours
+    
+    def get_biweekly_salary(self):
+        biweekly_salary = self.biweekly_salary
+        if self.gross_hourly != 0 and self.biweekly_hours != 0:
+            biweekly_salary = self.gross_hourly * self.biweekly_hours
+        return biweekly_salary
 
     def get_vacation_hours(self):
         mins = round(60 * (self.vacation_hours % 1))
@@ -854,6 +861,25 @@ class RARequest(models.Model):
             backdate_hours = str(hours) + " hours"  
         return backdate_hours
 
+    def get_grant_cost(self):
+        grant_cost = float(self.total_pay)
+        hiring_category = self.hiring_category
+        if hiring_category == "RA":
+            ra_benefits = self.ra_benefits
+            payment_method = self.ra_payment_method
+            if payment_method == "BW":
+                if ra_benefits == "Y":
+                    grant_cost = grant_cost * 1.17
+                elif (ra_benefits == "NE" or ra_benefits == "N"):
+                    grant_cost = grant_cost * 1.11
+            elif payment_method == "H":
+                grant_cost = self.get_base_pay()
+                if ra_benefits == "Y":
+                    grant_cost = grant_cost * 1.21
+                elif (ra_benefits == "NE" or ra_benefits == "N"):
+                    grant_cost = grant_cost * 1.15
+        return grant_cost
+        
     def get_name(self):
         if self.first_name and self.last_name:
             name = "%s %s" % (self.first_name, self.last_name)
@@ -1049,8 +1075,11 @@ class RARequest(models.Model):
         """
         today = datetime.datetime.now()
         min_age = datetime.datetime.now() + datetime.timedelta(days=28)
-        expiring_ras = RARequest.objects.filter(end_date__gt=today, end_date__lte=min_age, deleted=False, draft=False, complete=True)
-        ras = [ra for ra in expiring_ras if 'reminded' not in ra.config or not ra.config['reminded']]
+        min_age_ras = datetime.datetime.now() + datetime.timedelta(days=60)
+        expiring_ras = RARequest.objects.filter(end_date__gt=today, end_date__lte=min_age, hiring_category__in=["GRAS", "NC"], deleted=False, draft=False, complete=True)
+        expiring_true_ras = RARequest.objects.filter(end_date__gt=today, end_date__lte=min_age_ras, hiring_category="RA", deleted=False, draft=False, complete=True)
+        all_ras = expiring_ras | expiring_true_ras
+        ras = [ra for ra in all_ras if 'reminded' not in ra.config or not ra.config['reminded']]
         return ras
 
     def mark_reminded(self):
@@ -1063,30 +1092,49 @@ class RARequest(models.Model):
         Emails the supervisors of the RAs who have appointments that are about to expire.
         Same method as in RAAppointment
         """
-        subject = 'RA Appointment Expiry Reminder'
         from_email = settings.DEFAULT_FROM_EMAIL
 
         expiring_ras = cls.expiring_appointments()
-        template = get_template('ra/emails/new_reminder.txt')
+        html_template = get_template('ra/emails/new_reminder.html')
+        text_template = get_template('ra/emails/new_reminder.txt')
 
         for raappt in expiring_ras:
             supervisor = raappt.supervisor
-            context = {'supervisor': supervisor, 'raappt': raappt}
-            # Let's see if we have any Funding CC supervisors that should also get the reminder.
-            cc = None
-            fund_cc_roles = Role.objects_fresh.filter(unit=raappt.unit, role='FDCC')
-            # If we do, let's add them to the CC list, but let's also make sure to use their role account email for
-            # the given role type if it exists.
-            if fund_cc_roles:
-                people = []
-                for role in fund_cc_roles:
-                    people.append(role.person)
-                people = list(set(people))
-                cc = []
-                for person in people:
-                    cc.append(person.role_account_email('FDCC'))
-            msg = EmailMultiAlternatives(subject, template.render(context), from_email, [supervisor.email()],
+            hiring_category = raappt.hiring_category
+
+            if hiring_category == "RA":
+                subject = "Research Assistant Appointment Expiry Reminder"
+                cc = [FAS_CONTACT]
+            elif hiring_category == "GRAS":
+                cc = None
+                subject = "Graduate RA Scholarship Appointment Expiry Reminder"
+                # Let's see if we have any Funding CC supervisors that should also get the reminder.
+                fund_cc_roles = Role.objects_fresh.filter(unit=raappt.unit, role='FDCC')
+                # If we do, let's add them to the CC list, but let's also make sure to use their role account email for
+                # the given role type if it exists.
+                if fund_cc_roles:
+                    people = []
+                    for role in fund_cc_roles:
+                        people.append(role.person)
+                    people = list(set(people))
+                    cc = []
+                    for person in people:
+                        cc.append(person.role_account_email('FDCC'))
+            else:
+                subject = "Appointment Expiry Reminder"
+                cc = None
+
+
+            research_assistant = (hiring_category == "RA")
+            graduate_research_assistant = (hiring_category == "GRAS")
+            non_continuing = (hiring_category == "NC") 
+            url = settings.BASE_ABS_URL + raappt.get_absolute_url()
+            context = {'supervisor': supervisor, 'raappt': raappt, 'research_assistant': research_assistant, 'graduate_research_assistant': graduate_research_assistant, 'non_continuing': non_continuing, 'url': url}
+            text_content = text_template.render(context)
+            html_content = html_template.render(context)
+            msg = EmailMultiAlternatives(subject, text_content, from_email, [supervisor.email()],
                                          headers={'X-coursys-topic': 'ra'}, cc=cc)
+            msg.attach_alternative(html_content, "text/html")
             msg.send()
             raappt.mark_reminded()
 

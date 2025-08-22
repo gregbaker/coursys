@@ -58,6 +58,7 @@ ROLE_CHOICES = (
         ('GRAD', 'Grad Student Administrator'),
         ('GRPD', 'Graduate Program Director'),
         ('FUND', 'Grad Funding Administrator'),
+        ('FDMA', 'Grad Funding Manager'),
         ('FDRE', 'Grad Funding Requester'),
         ('FDCC', 'Grad Funding Reminder CC'),
         ('TECH', 'Tech Staff'),
@@ -75,10 +76,10 @@ ROLE_CHOICES = (
         )
 ROLES = dict(ROLE_CHOICES)
 # roles departmental admins ('ADMN') are allowed to assign within their unit
-UNIT_ROLES = ['ADVS', 'ADVM', 'TAAD', 'GRAD', 'FUND', 'FDRE', 'FDCC', 'GRPD',
+UNIT_ROLES = ['ADVS', 'ADVM', 'TAAD', 'GRAD', 'FUND', 'FDRE', 'FDMA', 'FDCC', 'GRPD',
               'SESS', 'COOP', 'INST', 'SUPV', 'OUTR', 'INV', 'FACR', 'FACA', 'RELA', 'SPAC', 'FORM']
 # roles that give access to SIMS data
-SIMS_ROLES = ['ADVS', 'ADMV', 'DISC', 'DICC', 'FUND', 'GRAD', 'GRPD']
+SIMS_ROLES = ['ADVS', 'ADMV', 'DISC', 'DICC', 'FUND', 'GRAD', 'GRPD', 'FDRE', 'FDMA']
 
 # discipline-related roles.  We notify someone else on top of the DAs for those.
 DISC_ROLES = ['DISC', 'DICC']
@@ -95,6 +96,7 @@ ROLE_DESCR = {
         'GRPD': 'Director of the graduate program: typically the signer of grad-related letters.',
         'FUND': 'Can work with the grad student funding database.',
         'FDRE': 'Can submit grad student funding requests.',
+        'FDMA': 'Can manage grad student funding settings and research assistants',
         'FDCC': 'Gets copied on RA expiring reminder emails',
         'TECH': 'Can manage resources required for courses.',
         'FAC': 'Faculty Member',
@@ -219,7 +221,7 @@ class Person(models.Model, ConditionalSaveMixin):
     def first_with_pref(self):
         name = self.config.get('first_name', self.first_name)
         pref = self.real_pref_first()
-        if pref != name:
+        if pref.upper() != name.upper():
             name += ' (%s)' % (pref)
         return name
 
@@ -1893,15 +1895,18 @@ class EnrolmentHistory(models.Model):
     enrl_cap = models.PositiveSmallIntegerField()
     enrl_tot = models.PositiveSmallIntegerField()
     wait_tot = models.PositiveSmallIntegerField()
+    enrl_drp = models.PositiveSmallIntegerField(default=0) # how many students dropped yesterday?
+    wait_drp = models.PositiveSmallIntegerField(default=0) # how many students dropped off the waitlist yesterday?
+    wait_add = models.PositiveSmallIntegerField(default=0) # how many students were added to the waitlist yesterday? 
 
     class Meta:
         unique_together = (('offering', 'date'),)
 
     def __str__(self):
-        return '%s@%s (%i, %i, %i)' % (self.offering.slug, self.date, self.enrl_cap, self.enrl_tot, self.wait_tot)
+        return '%s@%s (%i, %i, %i) (%i, %i, %i)' % (self.offering.slug, self.date, self.enrl_cap, self.enrl_tot, self.wait_tot, self.enrl_drp, self.wait_drp, self.wait_add)
 
     @classmethod
-    def from_offering(cls, offering, date=None, save=True):
+    def from_offering(cls, offering, extra_waitlist_data=None, date=None, save=True):
         """
         Build an EnrolmentHistory for this offering (today or on given date).
         """
@@ -1915,17 +1920,29 @@ class EnrolmentHistory(models.Model):
         else:
             eh.date = datetime.date.today()
 
+        if extra_waitlist_data:
+            if extra_waitlist_data["enrl_drp"]:
+                eh.enrl_drp = extra_waitlist_data["enrl_drp"]
+            if extra_waitlist_data["wait_drp"]:
+                eh.wait_drp = extra_waitlist_data["wait_drp"]
+            if extra_waitlist_data["wait_add"]:
+                eh.wait_add = extra_waitlist_data["wait_add"]
+        
         if save:
             eh.save_or_replace()
 
     @property
     def enrl_vals(self):
         return self.enrl_cap, self.enrl_tot, self.wait_tot
+    
+    @property
+    def wait_vals(self):
+        return self.enrl_drp, self.wait_drp, self.wait_add
 
     def is_dup(self, other):
         "Close enough that other can be deleted?"
         assert self.date < other.date
-        return self.enrl_vals == other.enrl_vals
+        return (self.enrl_vals == other.enrl_vals and other.enrl_drp == 0 and other.wait_drp == 0 and other.wait_add == 0)
 
     @classmethod
     def deduplicate(cls, start_date=None, end_date=None, dry_run=False):
@@ -1963,4 +1980,7 @@ class EnrolmentHistory(models.Model):
             other.enrl_cap = self.enrl_cap
             other.enrl_tot = self.enrl_tot
             other.wait_tot = self.wait_tot
+            other.enrl_drp = self.enrl_drp
+            other.wait_drp = self.wait_drp
+            other.wait_add = self.wait_add
             other.save()

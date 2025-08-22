@@ -42,8 +42,8 @@ ACL_ROLES = { # reverse of MEMBER_ROLES: what ACLs is this Member allowed to acc
 
 MACRO_LABEL = 'MACROS' # special page that contain macro expansions for other pages
 
-label_re = re.compile("^[\w\-_\.]+$")
-macroline_re = re.compile("^(?P<key>\w+):\s*(?P<value>.*)\s*$")
+label_re = re.compile(r"^[\w\-_\.]+$")
+macroline_re = re.compile(r"^(?P<key>\w+):\s*(?P<value>.*)\s*$")
 
 
 def attachment_upload_to(instance, filename):
@@ -439,7 +439,7 @@ class PageVersion(models.Model):
             return mark_safe(html)
         else:
             markup_content = self.substitute_macros(self.get_wikitext())
-            html = markup_to_html(markup_content, self.markup(), pageversion=self, html_already_safe=True)
+            html = markup_to_html(markup_content, self.markup(), pageversion=self, html_already_safe=True, hidden_llm=True)
             cache.set(key, html, 24*3600) # expired if activities are changed (in signal below), or by saving a PageVersion in this offering
             return mark_safe(html)
 

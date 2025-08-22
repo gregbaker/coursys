@@ -27,8 +27,7 @@
   <div id="actions">
     <h2>Actions</h2>
     <ul>
-      {% if admin %}
-        <li><a href="{% url "ra:edit_request" ra_slug=req.slug %}">Edit this {{ status }}</a></li> 
+      {% if can_edit %}<li><a href="{% url "ra:edit_request" ra_slug=req.slug %}">Edit this {{ status }}</a></li>
         <li><a href="{% url "ra:request_paf" ra_slug=req.slug %}">Payroll Appointment Form</a></li>
         {% if req.backdated and not graduate_research_assistant %}
         <li><i>Offer letters are not available for backdated appointments.</i></li>
@@ -74,12 +73,14 @@
       {% if not req.complete %}
         <form action="{% url "ra:update_processor" ra_slug=req.slug %}" class="lineform" method="post"> 
           {% csrf_token %}
-          {% if not req.processor %}
-            <p><input type="submit" value="Assign Myself" /></p>
-          {% elif is_processor %}
-            <p><input type="submit" value="Unassign Myself" /></p>
-          {% else %}
-            <p><input type="submit" value="Unassign Current Processor and Assign Myself" /></p>
+          {% if can_edit %}
+            {% if not req.processor %}
+              <p><input type="submit" value="Assign Myself" /></p>
+            {% elif is_processor %}
+              <p><input type="submit" value="Unassign Myself" /></p>
+            {% else %}
+              <p><input type="submit" value="Unassign Current Processor and Assign Myself" /></p>
+            {% endif %}
           {% endif %}
         </form>
       {%endif %}
@@ -109,7 +110,7 @@
     {% if not nonstudent %}
     <tr><th>Is Co-Op:</th><td>{{ req.coop|yesno|capfirst }}
         {% if req.swpp and req.coop %} (and applying for funding through SWPP) {% endif %}</td></tr>
-    {% if req.student == 'U' %}
+    {% if req.usra %}
         <tr><th>USRA:</th><td>{{ req.usra|yesno|capfirst }}</td></tr>
     {% endif %}
     {% if show_mitacs %}
@@ -228,29 +229,26 @@
 
 
 <div class="table_container">
-  <h2>Payment Terms</h2>
+  <h2>Appointment Terms</h2>
   <table class="info">
     <tr><th>Start Date:</th><td>{{ req.start_date }}</td></tr>
     <tr><th>End Date:</th><td>{{ req.end_date }}</td></tr>
     {% if not ra_ls or nc_ls %}
     <tr><th>Pay Periods:</th><td>{{ req.pay_periods}}</td></tr>
     {% endif %}
+    {% if ra_bw or ra_hourly %}
+    <h3>Payment</h3>
+    {% endif %}
     {% if ra_bw %}
-    <tr><th>Payment Method:</th><td>Bi-Weekly</td></tr>
-    <tr><th>Total Gross:</th><td>${{ req.total_gross|floatformat:2 }}</td></tr>
-    <tr><th>Weeks Vacation:</th><td>{{ req.weeks_vacation|floatformat:0 }}</td></tr>
-    <tr><th>Biweekly Hours:</th><td>{{ req.biweekly_hours|floatformat:2 }} ({{req.get_biweekly_hours}})</td></tr>
-    <tr><th>Biweekly Salary:</th><td>${{ req.biweekly_salary|floatformat:2 }}</td></tr>
-    <tr><th>Vacation Hours:</th><td>{{ req.vacation_hours|floatformat:2 }} ({{req.get_vacation_hours}})</td></tr>
     <tr><th>Gross Hourly:</th><td>${{ req.gross_hourly|floatformat:2 }}</td></tr>
+    <tr><th>Biweekly Hours:</th><td>{{ req.biweekly_hours|floatformat:2 }} ({{req.get_biweekly_hours}})</td></tr>
+    <tr><th>Gross Biweekly Salary:</th><td>${{ req.biweekly_salary|floatformat:2 }}</td></tr>
     {% endif %}
     {% if ra_hourly %}
-    <tr><th>Payment Method:</th><td>Hourly</td></tr>
     <tr><th>Gross Hourly:</th><td>${{ req.gross_hourly|floatformat:2 }}</td></tr>
-    <tr><th>Vacation Pay:</th><td>{{ req.vacation_pay|floatformat:1 }}%</td></tr>
     <tr><th>Bi-Weekly Hours:</th><td>{{ req.biweekly_hours|floatformat:2 }} ({{req.get_biweekly_hours}})</td></tr>
-    <tr><th>Pay:</th><td>${{ req.get_base_pay|floatformat:2 }}</td></tr>
-    <tr><th>Vacation Pay:</th><td>${{ req.get_vacation_pay|floatformat:2 }}</td></tr>
+    <tr><th>Gross Biweekly Salary:</th><td>${{ req.get_biweekly_salary|floatformat:2 }}</td></tr>
+    <tr><th>Total Gross Pay:</th><td>${{ req.get_base_pay|floatformat:2 }}</td></tr>
     {% endif %}
     {% if gras_le %}
       <tr><th>Payment Method:</th><td>Lump Sum</td></tr>
@@ -292,11 +290,46 @@
     {% endif %}
     {% if graduate_research_assistant %}
     <tr><th>Total Funding:</th><td>${{ req.total_pay}}</td></tr>
+    {% elif research_assistant and not req.usra %}
+      {% if ra_bw %}
+      <tr><th>Total Gross Pay:</th><td>${{ req.total_pay}}</td></tr>
+      {% elif ra_hourly %}
+      <tr><th>Total Gross Pay and Vacation Pay:</th><td>${{ req.total_pay}}</td></tr>
+      {% endif %}
     {% else %}
     <tr><th><div class="info-bubble">Total Pay: <i class="fa fa-info-circle"></i> <span class="info">Exclusive of statutory benefit rate (Employer portion of EHT, CPP, EI, and WCB)</span></div></th><td>${{ req.total_pay}}</td></tr>
     {% endif %}
   </table>
 </div>
+
+{% if research_assistant and not req.usra and not req.backdated and not ra_ls %}
+<h3>Entitlement</h3>
+{% if ra_bw %}
+<table class="info">
+  <tr><th>Vacation Entitlement per Year (Weeks):</th><td>{{ req.weeks_vacation|floatformat:0 }}</td></tr>
+  <tr><th>Vacation Hours (pro-rated):</th><td>{{ req.vacation_hours|floatformat:2 }} ({{req.get_vacation_hours}})</td></tr>
+  <tr><th>Extended Health/Dental Benefits:</th><td>{% if req.ra_benefits == 'Y' %}Yes{% elif req.ra_benefits == 'NE' %}No - Grant is Not Eligible{% elif req.ra_benefits == 'N' %}No{% endif %}</td></tr>
+</table>
+{% endif %}
+{% if ra_hourly %}
+<table class="info">
+  <tr><th>Vacation Pay:</th><td>{{ req.vacation_pay|floatformat:1 }}% - Must submit timesheet for employee to be paid</td></tr>
+  <tr><th>Vacation Pay Amount:</th><td>${{ req.get_vacation_pay|floatformat:2 }}</td></tr>
+  <tr><th>Extended Health/Dental Benefits:</th><td>{% if req.ra_benefits == 'Y' %}Yes{% elif req.ra_benefits == 'NE' %}No - Grant is Not Eligible{% elif req.ra_benefits == 'N' %}No{% endif %}</td></tr>
+</table>
+{% endif %}
+<div class="table_container">
+  <h2>Appointment Costs</h2>
+  <table class="info">
+    <tr><th>Benefits estimation on top of gross pay (%):</th>
+      <td>11% - Statutory Benefits<br>
+          {% if ra_hourly %}4% - Vacation Pay<br>{% endif %}
+          {% if req.ra_benefits == 'Y' %}6% - Extended Health/Dental Benefits{% endif %}
+      </td></tr>
+    <tr><th>Est. Cost Charging to Grant:</th><td>${{ req.get_grant_cost|floatformat:2 }}</td></tr>
+  </table>
+</div>
+{% endif %}
 
 <div class="table_container">
   <h2>Funding Comments</h2>
@@ -395,7 +428,7 @@
 
 {% if research_assistant %}
 <div class="table_container">
-  <h2>Duties/Benefits</h2>
+  <h2>Duties</h2>
   <table class="info">
     <tr><td>
       <ul>
@@ -413,18 +446,6 @@
           {% endif %}
       </ul>
     </td></tr>
-  </table>
-  <table class="info">
-    <tr><th>Benefits:</th><td>
-      {% if req.ra_benefits == 'Y' %}
-      Yes
-      {% elif req.ra_benefits == 'NE' %}
-      No - Grant is Not Eligible
-      {% elif req.ra_benefits == 'N' %}
-      No
-      {% endif %}
-    </td></tr>
-    
   </table>
 </div>
 {% endif %}
@@ -496,7 +517,7 @@
       {% if req.funding_available %}
           <table class="form_section_complete"><tr><td><b>Funding Available</b></td>
             <td class="checkbox">
-            {% if admin %}
+            {% if can_edit %}
             {{ adminform|as_dl_includefields:"funding_available"}}
             {% else %}
               <i>Complete</i>
@@ -506,7 +527,7 @@
       {% else %}
           <table class="form_section_incomplete"><tr><td><b>Funding Available</b></td>
             <td class="checkbox">
-            {% if admin %}
+            {% if can_edit %}
             {{ adminform|as_dl_includefields:"funding_available"}}
             {% else %}
               <i>Incomplete</i>
@@ -518,7 +539,7 @@
       {% if req.grant_active %}
         <table class="form_section_complete"><tr><td><b>Grant is Active for Duration of Appointment</b></td>
           <td class="checkbox">
-          {% if admin %}
+          {% if can_edit %}
           {{ adminform|as_dl_includefields:"grant_active"}}
           {% else %}
             <i>Complete</i>
@@ -528,7 +549,7 @@
       {% else %}
         <table class="form_section_incomplete"><tr><td><b>Grant is Active for Duration of Appointment</b></td>
           <td class="checkbox">
-          {% if admin %}  
+          {% if can_edit %}  
           {{ adminform|as_dl_includefields:"grant_active"}}
           {% else %}
             <i>Incomplete</i>
@@ -540,7 +561,7 @@
       {% if req.salary_allowable %}
         <table class="form_section_complete"><tr><td><b>Salary is an Allowable Expense</b></td>
           <td class="checkbox">
-          {% if admin %}
+          {% if can_edit %}
           {{ adminform|as_dl_includefields:"salary_allowable"}}
           {% else %}
             <i>Complete</i>
@@ -550,7 +571,7 @@
       {% else %}
         <table class="form_section_incomplete"><tr><td><b>Salary is an Allowable Expense</b></td>
           <td class="checkbox">
-          {% if admin %}
+          {% if can_edit %}
           {{ adminform|as_dl_includefields:"salary_allowable"}}
           {% else %}
             <i>Incomplete</i>
@@ -562,7 +583,7 @@
       {% if req.supervisor_check %}
         <table class="form_section_complete"><tr><td><b>Supervisor has Signing Authority - (If Not, Individual with Signing Authority is Identified)</b></td>
           <td class="checkbox">
-          {% if admin %}
+          {% if can_edit %}
           {{ adminform|as_dl_includefields:"supervisor_check"}}
           {% else %}
             <i>Complete</i>
@@ -572,7 +593,7 @@
       {% else %}
         <table class="form_section_incomplete"><tr><td><b>Supervisor has Signing Authority - (If Not, Individual with Signing Authority is Identified)</b></td>
           <td class="checkbox">
-          {% if admin %}
+          {% if can_edit %}
           {{ adminform|as_dl_includefields:"supervisor_check"}}
           {% else %}
             <i>Incomplete</i>
@@ -584,7 +605,7 @@
       {% if req.visa_valid %}
         <table class="form_section_complete"><tr><td><b>Visa is Valid</b></td>
           <td class="checkbox">
-          {% if admin %}
+          {% if can_edit %}
           {{ adminform|as_dl_includefields:"visa_valid"}}
           {% else %}
             <i>Complete</i>
@@ -594,7 +615,7 @@
       {% else %}
         <table class="form_section_incomplete"><tr><td><b>Visa is Valid</b></td>
           <td class="checkbox">
-          {% if admin %}
+          {% if can_edit %}
           {{ adminform|as_dl_includefields:"visa_valid"}}
           {% else %}
             <i>Incomplete</i>
@@ -606,7 +627,7 @@
       {% if req.payroll_collected %}
         <table class="form_section_complete"><tr><td><b>Payroll Forms are Collected/Already on File</b></td>
           <td class="checkbox">
-          {% if admin %}
+          {% if can_edit %}
           {{ adminform|as_dl_includefields:"payroll_collected"}}
           {% else %}
             <i>Complete</i>
@@ -616,7 +637,7 @@
       {% else %}
         <table class="form_section_incomplete"><tr><td><b>Payroll Forms are Collected/Already on File</b></td>
           <td class="checkbox">
-          {% if admin %}
+          {% if can_edit %}
           {{ adminform|as_dl_includefields:"payroll_collected"}}
           {% else %}
             <i>Incomplete</i>
@@ -628,7 +649,7 @@
       {% if req.paf_signed %}
         <table class="form_section_complete"><tr><td><b>PAF and Offer Letter (If Applicable) are Signed by Supervisor</b></td>
           <td class="checkbox">
-          {% if admin %}
+          {% if can_edit %}
           {{ adminform|as_dl_includefields:"paf_signed"}}
           {% else %}
             <i>Complete</i>
@@ -638,7 +659,7 @@
       {% else %}
         <table class="form_section_incomplete"><tr><td><b>PAF and Offer Letter (If Applicable) are Signed by Supervisor</b></td>
           <td class="checkbox">
-          {% if admin %}
+          {% if can_edit %}
           {{ adminform|as_dl_includefields:"paf_signed"}}
           {% else %}
             <i>Incomplete</i>
@@ -647,14 +668,14 @@
         </tr></table>
       {% endif %}
 
-      {% if admin %}
+      {% if can_edit %}
       <p><input type="submit" class="submit" value="Update Checklist" /></p>
       {% endif %}
     </fieldset>
   </form>  
 </div>
 
-{% if admin %}
+{% if can_edit %}
 <div class="bottom_admin">
 <h2>Delete</h2>
 <form action="{% url "ra:delete_request" ra_slug=req.slug %}" class="subtle" method="post">

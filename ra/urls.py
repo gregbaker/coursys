@@ -12,7 +12,8 @@ PROGRAM_ID = '(?P<program_id>' + ID_RE + ')'
 ra_patterns = [ # prefix /ra/
     url(r'^download_current', ra_views.download, kwargs={'current': True}, name='download_current'),
     url(r'^download_all', ra_views.download, name='download_all'),
-    url(r'^download_requests', ra_views.download, kwargs={'incomplete': True}, name='download_requests'),
+    url(r'^download_index', ra_views.download_index, name='download_index'),
+    url(r'^download_admin', ra_views.download_admin, name='download_admin'),
     url(r'^new_request/', RANewRequestWizard.as_view(FORMS, 
                                                 condition_dict={'graduate_research_assistant': check_gras, 
                                                 'research_assistant': check_ra, 
@@ -71,7 +72,7 @@ ra_patterns = [ # prefix /ra/
     url(r'^' + RA_SLUG + '/edit_letter$', ra_views.edit_letter, name='edit_letter'),
     url(r'^' + RA_SLUG + '/delete$', ra_views.delete_ra, name='delete_ra'),
     url(r'^' + RA_SLUG + '/select_letter$', ra_views.select_letter, name='select_letter'),
-    url(r'^' + RA_SLUG + '/select_letter/' + '(?P<print_only>[\w\-]+)' + '$', ra_views.select_letter, name='select_letter'),
+    url(r'^' + RA_SLUG + r'/select_letter/(?P<print_only>[\w\-]+)' + '$', ra_views.select_letter, name='select_letter'),
     url(r'^' + RA_SLUG + '/new_attach$', ra_views.new_attachment, name='new_attachment'),
     url(r'^' + RA_SLUG + '/attach/' + ATTACH_SLUG + '/delete$', ra_views.delete_attachment, name='delete_attachment'),
     url(r'^' + RA_SLUG + '/attach/' + ATTACH_SLUG + '/view', ra_views.view_attachment, name='view_attachment'),
