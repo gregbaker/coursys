@@ -360,7 +360,7 @@ def haystack_update():
     our_update_index(update_only=True)
 
 
-@task(queue='sims')
+@task(queue='batch')
 def haystack_rebuild():
     """
     Purge and rebuild the search index occasionally to get any orphaned records. Called weekly in the Celery schedule.

@@ -22,7 +22,7 @@ class ThreadIndex(indexes.SearchIndex, indexes.Indexable):
         return Thread
 
     def index_queryset(self, using=None):
-        cutoff = datetime.date.today() - datetime.timedelta(days=730)
+        cutoff = datetime.date.today() - datetime.timedelta(days=365*10)
         return self.get_model().objects.exclude(post__status='HIDD').filter(post__offering__semester__start__gte=cutoff) \
             .select_related('post', 'post__offering').prefetch_related('reply_set')
 

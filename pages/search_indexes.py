@@ -15,7 +15,7 @@ class PageIndex(indexes.SearchIndex, indexes.Indexable):
         return Page
 
     def index_queryset(self, using=None):
-        cutoff = datetime.date.today() - datetime.timedelta(days=730)
+        cutoff = datetime.date.today() - datetime.timedelta(days=365*10)
         return self.get_model().objects.exclude(can_read='NONE').filter(offering__semester__start__gte=cutoff) \
             .select_related('offering')
 
