@@ -3,16 +3,16 @@ from typing import Optional, Iterable, Type
 
 from django.conf import settings
 from django.db import models
-from haystack.exceptions import NotHandled
-from haystack.utils import loading
-from haystack.utils.app_loading import haystack_get_models, haystack_load_apps
 
 from coredata.queries import SIMSConn, SIMSProblem
-from courselib.search import haystack_update_index, haystack_rebuild_index
 from django.core.management import call_command
 from courselib.celerytasks import task
+from courselib.search import our_update_index as do_our_update_index
+from courselib.search import update_index_chunk as do_update_index_chunk
+from courselib.search import our_clear_index as do_our_clear_index
 from coredata.models import Role, Unit, EnrolmentHistory
 import celery
+
 
 app = celery.Celery(broker=settings.CELERY_BROKER_URL, backend=settings.CELERY_RESULT_BACKEND)  # periodic tasks don't fire without app constructed
 
@@ -231,6 +231,7 @@ def get_role_people():
     logger.info('Importing people with roles')
     importer.get_role_people()
 
+
 @task(queue='sims')
 def import_offerings(continue_import=False):
     logger.info('Fetching offerings')
@@ -264,9 +265,6 @@ def get_import_offerings_tasks():
     offering_groups = grouper(offerings, 10)
     slug_groups = ([o.slug for o in offerings] for offerings in offering_groups)
 
-    #tasks = [import_offering_group.si(slugs) for slugs in slug_groups]
-    #return tasks
-
     offering_import_chain = celery.chain(*[import_offering_group.si(slugs) for slugs in slug_groups])
     return offering_import_chain
 
@@ -288,10 +286,12 @@ def import_combined_sections():
     logger.info('Importing combined sections from SIMS')
     importer.import_combined()
 
+
 @task(queue='sims')
 def import_joint():
     logger.info('Importing joint offerings from SIMS')
     importer.import_joint()
+
 
 @task(queue='sims')
 def import_semester_info():
@@ -351,58 +351,31 @@ def import_active_grad_gpas():
 ###################################################################################################
 # Search-related tasks
 
-
 @task(queue='sims')
 def haystack_update():
-    haystack_update_index()
+    """
+    Call the update_index logic. Called at the end of the import to index whatever
+    was imported and do a daily index update.
+    """
+    our_update_index(update_only=True)
 
 
-# purge and rebuild the search index occasionally to get any orphaned records
 @task(queue='sims')
 def haystack_rebuild():
-    haystack_rebuild_index()
+    """
+    Purge and rebuild the search index occasionally to get any orphaned records. Called weekly in the Celery schedule.
+    """
+    do_our_clear_index()
+    our_update_index(update_only=False)
 
 
 @task(queue='batch')
 def our_update_index(group_size: int = 2500, update_only: bool = True):
-    """
-    Roughly equivalent to the Haystack update_index management command, but handles the work in reasonably-sized
-    Celery tasks.
-    group_size: the number of objects to index in a task
-    update_only: don't necessarily index *everything*. Honour the SearchIndex's .update_filter() method if present.
-    """
-    haystack_connections = loading.ConnectionHandler(settings.HAYSTACK_CONNECTIONS)
-    backends = haystack_connections.connections_info.keys()
-    for label in haystack_load_apps():
-        for using in backends:
-            unified_index = haystack_connections[using].get_unified_index()
-            for model in haystack_get_models(label):
-                try:
-                    index = unified_index.get_index(model)
-                except NotHandled:
-                    continue
-
-                qs = index.build_queryset(using=using)
-
-                if update_only and hasattr(index, 'update_filter'):  # allow updating of only-likely-changing instances
-                    qs = index.update_filter(qs)
-
-                tasks = []
-                for group in grouper(qs.values('pk'), group_size):
-                    t = update_index_chunk.si(using=using, model=model, pks=[o['pk'] for o in group])
-                    tasks.append(t)
-                chain = celery.chain(*tasks)
-                chain.delay()
+    do_our_update_index(group_size=group_size, update_only=update_only, use_celery=True)
 
 
 @task(queue='batch', serializer='pickle')
 def update_index_chunk(using: str, model: Type[models.Model], pks: Iterable[int], commit: bool = True) -> None:
-    """
-    Index these instances (type model, primary keys in pks) with Haystack.
-    """
-    haystack_connections = loading.ConnectionHandler(settings.HAYSTACK_CONNECTIONS)
-    backend = haystack_connections[using].get_backend()
-    unified_index = haystack_connections[using].get_unified_index()
-    index = unified_index.get_index(model)
-    qs = model.objects.filter(pk__in=pks)
-    backend.update(index, qs, commit=commit)
+    do_update_index_chunk(using=using, model=model, pks=pks, commit=commit)
+
+

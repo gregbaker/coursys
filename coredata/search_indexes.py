@@ -16,10 +16,11 @@ class OfferingIndex(indexes.SearchIndex, indexes.Indexable):
         return CourseOffering
 
     def index_queryset(self, using=None):
-        cutoff = datetime.date.today() - datetime.timedelta(days=3650)
+        cutoff = datetime.date.today() - datetime.timedelta(days=365*10)
         return self.get_model().objects.exclude(component='CAN').filter(semester__start__gte=cutoff).select_related('semester')
 
     def update_filter(self, qs):
+        "In our_update_index, don't worry about older offerings: they're very unlikely to change."
         cutoff = datetime.date.today() - datetime.timedelta(days=365)
         return qs.filter(semester__start__gte=cutoff)
 
@@ -81,6 +82,7 @@ class MemberIndex(indexes.SearchIndex, indexes.Indexable):
                 .filter(offering__semester__start__gte=cutoff)
 
     def update_filter(self, qs):
+        "In our_update_index, don't worry about older offerings: they're very unlikely to change."
         cutoff = datetime.date.today() - datetime.timedelta(days=365)
         return qs.filter(offering__semester__start__gte=cutoff)
 

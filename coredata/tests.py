@@ -342,23 +342,6 @@ class SlowCoredataTest(TestCase):
         # courseoffering detail page
         url = reverse('browse:browse_courses_info', kwargs={'course_slug': TEST_COURSE_SLUG})
         response = basic_page_tests(self, client, url)
-    
-    def disabled_test_ajax(self):
-        # disabled because haystack + tests aren't behaving well
-        client = Client()
-        haystack_update_index() # make sure we have the same data in DB and haystack
-
-        # test person autocomplete
-        client.login_user("dzhao")
-        p = Person.objects.get(userid='ggbaker')
-        url = reverse('data:student_search')
-        response = client.get(url, {'term': 'ggba'})
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['content-type'], 'application/json')
-        # should find this person
-        data = json.loads(response.content.decode('utf8'))
-        emplids = [str(d['value']) for d in data]
-        self.assertIn(str(p.emplid), emplids)
 
 
 class EnrolmentHistoryTest(TestCase):
@@ -460,7 +443,7 @@ class SearchTest(TestCase):
         self.assertEqual(results.count(), 0)
 
         # ... but after update_index.we do.
-        haystack_update_index()
+        haystack_update_index(update_only=False)
         results = SearchQuerySet().models(Member).filter(text__fuzzy=fname)
         self.assertEqual(results.count(), 1)
 
@@ -471,7 +454,7 @@ class SearchTest(TestCase):
         self.assertEqual(results.count(), 1)
 
         # update_index doesn't detect a data change that excludes the object from the index_queryset
-        haystack_update_index()
+        haystack_update_index(update_only=False)
         results = SearchQuerySet().models(Member).filter(text__fuzzy=fname)
         self.assertEqual(results.count(), 1)
 
