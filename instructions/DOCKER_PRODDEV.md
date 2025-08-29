@@ -19,6 +19,7 @@ RABBITMQ_PASSWORD = 'rabbitmq_password'
 
 Get the Docker-based things up and running:
 ```sh
+sudo chown 1000 /data/elasticsearch7/
 export RABBITMQ_PASSWORD=rabbitmq_password
 docker compose -f docker-compose.yml -f docker-compose-proddev.yml pull
 docker compose -f docker-compose.yml -f docker-compose-proddev.yml build --pull
