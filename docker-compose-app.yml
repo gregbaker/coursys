@@ -1,0 +1,7 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: app.Dockerfile
+    environment:
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
