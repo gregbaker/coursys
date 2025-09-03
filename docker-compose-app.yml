@@ -5,8 +5,8 @@ services:
     restart: always
     ports:
       - "127.0.0.1:5672:5672"
-    volumes:
-      - /data/rabbitmq:/var/lib/rabbitmq:rw
+    # volumes:
+    #   - /data/rabbitmq:/var/lib/rabbitmq:rw
     environment:
       - RABBITMQ_DEFAULT_USER=coursys
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-rabbitmq_password}
@@ -18,8 +18,8 @@ services:
     ports:
       - "127.0.0.1:9200:9200"
       - "127.0.0.1:9300:9300"
-    volumes:
-      - /data/elasticsearch:/usr/share/elasticsearch/data:rw
+    # volumes:
+    #   - /data/elasticsearch:/usr/share/elasticsearch/data:rw
     environment:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
@@ -36,8 +36,8 @@ services:
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     ports:
       - "127.0.0.1:3306:3306"
-    volumes:
-      - /data/mysql:/var/lib/mysql:rw
+    # volumes:
+    #   - /data/mysql:/var/lib/mysql:rw
     environment:
       - MYSQL_USER=coursysuser
       - MYSQL_PASSWORD=coursyspassword
@@ -55,8 +55,26 @@ services:
     build:
       context: .
       dockerfile: app.Dockerfile
+    depends_on:
+      - mysql
+      - rabbitmq
+      - elasticsearch
+      - memcached
+    init: true
     environment:
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-rabbitmq_password}
     ports:
       - "127.0.0.1:8000:8000"
+
+  celery:
+    build:
+      context: .
+      dockerfile: app.Dockerfile
+    depends_on:
+      - mysql
+      - rabbitmq
+    init: true
+    environment:
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-rabbitmq_password}
+    command: celery -A courses worker -l INFO -B
 
