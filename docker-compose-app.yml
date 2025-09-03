@@ -1,7 +1,62 @@
 services:
+
+  rabbitmq:
+    image: 'rabbitmq:3'
+    restart: always
+    ports:
+      - "127.0.0.1:5672:5672"
+    volumes:
+      - /data/rabbitmq:/var/lib/rabbitmq:rw
+    environment:
+      - RABBITMQ_DEFAULT_USER=coursys
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-rabbitmq_password}
+      - RABBITMQ_DEFAULT_VHOST=myvhost
+
+  elasticsearch:
+    image: 'elasticsearch:5.6.16'
+    restart: always
+    ports:
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9300:9300"
+    volumes:
+      - /data/elasticsearch:/usr/share/elasticsearch/data:rw
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+
+  memcached:
+    image: 'memcached:latest'
+    restart: always
+    ports:
+      - "127.0.0.1:11211:11211"
+
+  mysql:
+    image: 'mariadb:11.8'
+    restart: always
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - /data/mysql:/var/lib/mysql:rw
+    environment:
+      - MYSQL_USER=coursysuser
+      - MYSQL_PASSWORD=coursyspassword
+      - MYSQL_DATABASE=coursys
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+
+  smtp4dev:
+    image: 'rnwood/smtp4dev'
+    restart: always
+    ports:
+      - "127.0.0.1:2525:25"
+      - "0.0.0.0:8025:80"
+
   app:
     build:
       context: .
       dockerfile: app.Dockerfile
     environment:
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-rabbitmq_password}
+    ports:
+      - "127.0.0.1:8000:8000"
+
