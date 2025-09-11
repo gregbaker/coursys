@@ -63,6 +63,8 @@ services:
     init: true
     environment:
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-rabbitmq_password}
+    volumes:
+      - static:/static
     ports:
       - "127.0.0.1:8000:8000"
 
@@ -76,5 +78,20 @@ services:
     init: true
     environment:
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-rabbitmq_password}
-    command: celery -A courses worker -l INFO -B
+    volumes:
+      - static:/static
+    command: /wait-for-it.sh mysql:3306 && /wait-for-it.sh rabbitmq:5672 && celery -A courses worker -l INFO -B
 
+  nginx:
+    image: 'nginx:1'
+    restart: always
+    depends_on:
+      - app
+    volumes:
+      - static:/static
+    ports:
+      - "127.0.0.1:8080:80"
+    
+
+volumes:
+  static:

@@ -17,3 +17,5 @@ HAYSTACK_CONNECTIONS = {
 }
 
 MOSS_DISTRIBUTION_PATH = '/moss'
+DB_BACKUP_DIR = '/db_backups'
+SUBMISSION_PATH = '/submissions'

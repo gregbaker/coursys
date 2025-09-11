@@ -11,6 +11,8 @@ COPY requirements.txt /coursys/requirements.txt
 WORKDIR /coursys
 RUN pip install -r requirements.txt
 
+COPY docker/wait-for-it.sh /
+
 RUN useradd --home-dir /coursys --uid 1000 coursys
 RUN chown coursys /coursys
 
@@ -21,7 +23,21 @@ COPY . /coursys/
 COPY docker/localsettings-proddev.py courses/localsettings.py
 COPY docker/secrets-proddev.py courses/secrets.py
 
+RUN mkdir /static && chown coursys /static \
+  && mkdir /db_backups && chown coursys /db_backups \
+  && mkdir /submissions && chown coursys /submissions \
+  && mkdir /compress && chown coursys /compress \
+  && mkdir /logs && chown coursys /logs
+
 USER coursys
 
 ENV PYTHONUNBUFFERED 1
-CMD ./manage.py migrate && ./manage.py runserver 0:8000
+CMD /wait-for-it.sh mysql:3306 \
+  && /wait-for-it.sh elasticsearch:9200 \
+  && /wait-for-it.sh memcached:11211 \
+  && /wait-for-it.sh rabbitmq:5672 \
+  && ./manage.py collectstatic --no-input \
+  && ./manage.py migrate \
+  && gunicorn --workers=5 --worker-class=sync --max-requests=100 --max-requests-jitter=10 --bind 0:8000 courses.wsgi:application
+# --log-file=/logsgunicorn-server.log --error-logfile=/logs/gunicorn-error.log  
+#  && ./manage.py runserver 0:8000
