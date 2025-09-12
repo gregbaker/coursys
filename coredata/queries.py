@@ -341,6 +341,20 @@ def find_external_email(emplid):
         return row[0]
 
 
+@cache_by_args
+@SIMS_problem_handler
+def get_preferred_email(emplid, userid):
+    """
+    Import preferred email if it's different than what we'd construct
+    """
+    db = SIMSConn()
+    db.execute("SELECT EMAIL_ADDR FROM PS_EMAIL_ADDRESSES WHERE EMPLID=%s AND PREF_EMAIL_FLAG='Y' AND E_ADDR_TYPE='CAMP'",
+               (str(emplid),))
+    for email_addr, in db:
+        if userid and email_addr != userid + '@sfu.ca':
+            return email_addr
+
+
 def add_person(emplid, commit=True, external_email=False):
     """
     Add a Person object based on the found SIMS data
@@ -1666,9 +1680,15 @@ def import_person(p, commit=True, grad_data=False):
     if userid:
         ## but freak out if a userid changes
         if p.userid and p.userid != userid:
-            #raise ValueError, "Somebody's userid changed? %s became %s." % (p.userid, userid)
             mail_admins('userid change', "Somebody's userid changed: %s became %s." % (p.userid, userid))
         p.userid = userid
+
+    # also get preferred email if it's not the standard campus one
+    email = get_preferred_email(p.emplid, p.userid)
+    if email is not None:
+        p.config['email'] = email
+    elif 'email' in p.config:
+        del p.config['email']
 
     if grad_data:
         data = grad_student_info(p.emplid)
