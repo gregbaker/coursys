@@ -41,7 +41,7 @@ def download_contacts_csv(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'inline; filename="contacts-%s.csv"' % (datetime.now().strftime('%Y%m%d'))
     writer = csv.writer(response)
-    row = ['Title', 'Last Name', 'First Name', 'Middle Name', 'Preferred First Name', 'Company Name',
+    row = ['Title', 'Last Name', 'First Name', 'Preferred First Name', 'Company Name',
            'Address', 'Email', 'Phone', 'Notes']
     writer.writerow(row)
     for c in contacts:
@@ -49,7 +49,7 @@ def download_contacts_csv(request):
         for e in c.event_set.filter(event_type='notes'):
             notes.append(e.get_config_value('content'))
         notes = '\n'.join(notes)
-        writer.writerow([c.title, c.last_name, c.first_name, c.middle_name, c.pref_first_name, c.company_name,
+        writer.writerow([c.title, c.last_name, c.first_name, c.pref_first_name, c.company_name,
                          c.address, c.email, c.phone, notes])
 
     return response
