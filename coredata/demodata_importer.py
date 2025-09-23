@@ -84,7 +84,7 @@ def create_fake_students():
                 userid = "0%s%i" % (lett*3, i)
                 fname = randname(8)
                 lname = "Student"
-            p = Person(emplid=fake_emplid(), userid=userid, last_name=lname, first_name=fname, middle_name="", pref_first_name=fname[:4])
+            p = Person(emplid=fake_emplid(), userid=userid, last_name=lname, first_name=fname, pref_first_name=fname[:4])
             p.save()
             all_students[userid] = p
 

@@ -90,11 +90,11 @@ class CoredataTest(TestCase):
         """
         # create some people to test with
         p1 = Person(emplid=210012345, userid="test1",
-                last_name="Lname", first_name="Fname", pref_first_name="Fn", middle_name="M")
+                last_name="Lname", first_name="Fname", pref_first_name="Fn")
         p2 = Person(emplid=210012346, userid="test2",
-                last_name="Lname", first_name="Zname", pref_first_name="Gn", middle_name="M")
+                last_name="Lname", first_name="Zname", pref_first_name="Gn")
         p3 = Person(emplid=210012347, userid="test3",
-                last_name="Zname", first_name="Fname", pref_first_name="Gn", middle_name="M")
+                last_name="Zname", first_name="Fname", pref_first_name="Gn")
         p3.save()
         p1.save()
         p2.save()
@@ -114,7 +114,7 @@ class CoredataTest(TestCase):
 
     def test_person_2(self):
         p1 = Person(emplid=210012345, userid="test1",
-                last_name="Lname", first_name="Fname", pref_first_name="Fn", middle_name="M")
+                last_name="Lname", first_name="Fname", pref_first_name="Fn")
         p1.save()
         px = Person(emplid=210012348, userid="test1")
         self.assertRaises(IntegrityError, px.save)
@@ -237,7 +237,7 @@ class CoredataTest(TestCase):
 
         # test some course memberships
         p1 = Person(emplid=210012345, userid="test1",
-                last_name="Lname", first_name="Fname", pref_first_name="Fn", middle_name="M")
+                last_name="Lname", first_name="Fname", pref_first_name="Fn")
         p1.save()
         m = Member(person=p1, offering=c, role="INST", credits=0, career="NONS", added_reason="AUTO")
         m.save()
@@ -263,7 +263,7 @@ class CoredataTest(TestCase):
     def test_roles(self):
         # create person an give sysadmin role
         p1 = Person(emplid=210012345, userid="test1",
-                last_name="Lname", first_name="Fname", pref_first_name="Fn", middle_name="M")
+                last_name="Lname", first_name="Fname", pref_first_name="Fn")
         p1.save()
         
         unit = Unit.objects.get(label="UNIV")

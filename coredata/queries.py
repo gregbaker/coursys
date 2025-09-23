@@ -318,16 +318,16 @@ def find_person(emplid, get_userid=True):
     new to the system). Prefer build_person or import_person where possible.
     """
     db = SIMSConn()
-    db.execute("SELECT EMPLID, LAST_NAME, FIRST_NAME, MIDDLE_NAME FROM PS_PERSONAL_DATA WHERE EMPLID=%s",
+    db.execute("SELECT EMPLID, LAST_NAME, FIRST_NAME FROM PS_PERSONAL_DATA WHERE EMPLID=%s",
                (str(emplid),))
 
-    for emplid, last_name, first_name, middle_name in db:
+    for emplid, last_name, first_name in db:
         # use emails to guess userid: if not found, leave unset and hope the userid API has it on next nightly update
         if get_userid:
             userid = userid_from_sims(emplid)
         else:
             userid = None
-        return {'emplid': emplid, 'last_name': last_name, 'first_name': first_name, 'middle_name': middle_name, 'userid': userid}
+        return {'emplid': emplid, 'last_name': last_name, 'first_name': first_name, 'userid': userid}
 
 
 @cache_by_args
@@ -377,33 +377,31 @@ def get_names(emplid):
     """
     Basic personal info to populate Person object
     
-    Returns (last_name, first_name, middle_name, pref_first_name, title). Note that here first_name is deadname, not true first name.
+    Returns (last_name, first_name, pref_first_name, title). Note that here first_name is deadname, not true first name.
     """
     db = SIMSConn()
     
     #userid = userid_from_sims(emplid)
     last_name = None
     first_name = None
-    middle_name = None
     pref_first_name = None
     title = None
     
-    db.execute("SELECT NAME_TYPE, NAME_PREFIX, LAST_NAME, FIRST_NAME, MIDDLE_NAME FROM PS_NAMES WHERE "
+    db.execute("SELECT NAME_TYPE, NAME_PREFIX, LAST_NAME, FIRST_NAME FROM PS_NAMES WHERE "
                "EMPLID=%s AND EFF_STATUS='A' AND NAME_TYPE IN ('PRI','PRF') "
                "ORDER BY EFFDT", (str(emplid),))
     # order by effdt to leave the latest in the dictionary at end
-    for name_type, prefix, last, first, middle in db:
+    for name_type, prefix, last, first in db:
         if name_type == 'PRI':
             first_name = first
         elif name_type == 'PRF':
             pref_first_name = first
-        # Use most-recent last/middle from either PRI or PRF,
+        # Use most-recent last from either PRI or PRF,
         # whichever is most recent. Seems to be what SIMS does.
         last_name = last
-        middle_name = middle
         title = prefix
 
-    return last_name, first_name, middle_name, pref_first_name, title
+    return last_name, first_name, pref_first_name, title
 
 
 GRADFIELDS = ['ccredits', 'citizen', 'gpa', 'gender', 'visa']
@@ -1639,7 +1637,7 @@ def import_person(p, commit=True, grad_data=False):
     """
     Import SIMS (+ userid) information about this Person. Return the Person or None if they can't be found.
     """
-    last_name, legal_first_name, middle_name, pref_first_name, title = get_names(p.emplid)
+    last_name, legal_first_name, pref_first_name, title = get_names(p.emplid)
     if last_name is None:
         # no name = no such person
         return None
@@ -1650,7 +1648,6 @@ def import_person(p, commit=True, grad_data=False):
 
     p.last_name = last_name
     p.first_name = pref_first_name or legal_first_name  # if there's no preferred, legal is all we have so use it
-    p.middle_name = middle_name
     p.title = title
     p.config['lastimport'] = int(time.time())
 

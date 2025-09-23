@@ -735,7 +735,7 @@ def manage_tas(request, course_slug):
                     if not Person.objects.filter(emplid=emplid):
                         break
                     eid += 1
-                p = Person(first_name=form.cleaned_data['fname'], pref_first_name=form.cleaned_data['fname'], last_name=form.cleaned_data['lname'], middle_name='', userid=userid, emplid=emplid)
+                p = Person(first_name=form.cleaned_data['fname'], pref_first_name=form.cleaned_data['fname'], last_name=form.cleaned_data['lname'], userid=userid, emplid=emplid)
                 p.save()
 
             else:
@@ -1435,7 +1435,7 @@ def _instructor_autocomplete(request):
     response = HttpResponse(content_type='application/json')
 
     """ # non-haystack version
-    query = get_query(request.GET['term'], ['person__first_name', 'person__last_name', 'person__userid', 'person__middle_name'])
+    query = get_query(request.GET['term'], ['person__first_name', 'person__last_name', 'person__userid'])
     # matching person.id values who have actually taught a course
     person_ids = Member.objects.filter(query).filter(role='INST') \
                  .exclude(person__userid=None).order_by() \

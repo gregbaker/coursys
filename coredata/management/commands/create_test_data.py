@@ -111,8 +111,7 @@ class Command(BaseCommand):
                 pref = fname[:4]
             else:
                 pref = fname
-            p = Person(emplid=300000300 + i, userid=userid, last_name='Student', first_name=fname,
-                       middle_name=randname(6), pref_first_name=pref)
+            p = Person(emplid=300000300 + i, userid=userid, last_name='Student', first_name=fname, pref_first_name=pref)
             p.save()
             Member(person=p, offering=test_offering, role='STUD').save()
 
@@ -123,8 +122,7 @@ class Command(BaseCommand):
                 pref = fname[:4]
             else:
                 pref = fname
-            p = Person(emplid=300000500 + i, userid=userid, last_name='Grad', first_name=fname, middle_name=randname(6),
-                       pref_first_name=pref)
+            p = Person(emplid=300000500 + i, userid=userid, last_name='Grad', first_name=fname, pref_first_name=pref)
             p.config['gender'] = random.choice(list(GENDER_DESCR.keys()))
             p.config['gpa'] = round(random.triangular(0.0, 4.33, 2.33), 2)
             p.config['visa'] = random.choice([x for x, _ in VISA_STATUSES])
