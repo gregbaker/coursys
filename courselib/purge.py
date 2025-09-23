@@ -1,19 +1,24 @@
 import datetime
+from dataclasses import dataclass
 from typing import Iterable, Type
 from django.db import models
 from django.utils import timezone
 
 
-class DataPurger:
-    model_class: Type[models.Model]
-
-    def age(self, days: int) -> datetime.datetime:
-        return timezone.now() - datetime.timedelta(days=days)
-
-    # Exactly one of these should be implemented in a subclass:
-
-    def purge_queryset(self) -> models.QuerySet[models.Model]:
+class PurgePolicy:
+    # subclasses must implement exactly one of these methods:
+    def purgeable_queryset(self, model_class: Type[models.Model]) -> models.QuerySet[models.Model]:
         raise NotImplementedError()
-    
-    def purge_instances(self) -> Iterable[models.Model]:
+    def purgeable_instances(self, model_class: Type[models.Model]) -> Iterable[models.Model]:
         raise NotImplementedError()
+
+
+@dataclass
+class AgePurgePolicy(PurgePolicy):
+    age_field: str
+    after_days: int
+
+    def purgeable_queryset(self, model_class: Type[models.Model]) -> models.QuerySet[models.Model]:
+        cutoff = timezone.now() - datetime.timedelta(days=self.after_days)
+        filter_kwargs = {f'{self.age_field}__lt': cutoff}
+        return model_class.objects.filter(**filter_kwargs)

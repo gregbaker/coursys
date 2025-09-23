@@ -7,6 +7,8 @@ from django.db import models, connection
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 
+from courselib.purge import AgePurgePolicy
+
 
 PURGE_AFTER_DAYS = 30
 
@@ -42,6 +44,8 @@ class LogEntry(models.Model):
     related_object = GenericForeignKey('content_type', 'object_id')
     class Meta:
         ordering = ['-datetime']
+    
+    purge_policy = AgePurgePolicy(age_field='datetime', after_days=365)
 
     def save(self, *args, **kwargs):
         # self.content_type might be null if the related item is deleted, but must be created with one.
@@ -109,6 +113,7 @@ class EventLogEntry(models.Model):
     data = models.JSONField()
 
     objects = EventLogManager()
+    purge_policy = AgePurgePolicy(age_field='time', after_days=30)
 
     class Meta:
         abstract = True
