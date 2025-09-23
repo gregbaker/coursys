@@ -1184,10 +1184,10 @@ def download_nonstudents(request: HttpRequest) -> HttpResponse:
     response['Content-Disposition'] = 'inline; filename="prospective-students-%s.csv"' % (datetime.datetime.now().strftime('%Y%m%d'))
     writer = csv.writer(response)
 
-    writer.writerow(['First Name', 'Last Name', 'Middle Name', 'Gender', 'Email Address', 
+    writer.writerow(['First Name', 'Last Name', 'Gender', 'Email Address', 
                      'High School', 'College', 'Start Year', 'Potential Program', 'Preferred Campus', 'Unit', 'Created At'])
     for ns in nonstudents:
-        writer.writerow([ns.first_name, ns.last_name, ns.middle_name, ns.gender, ns.email_address,
+        writer.writerow([ns.first_name, ns.last_name, ns.gender, ns.email_address,
                         ns.high_school, ns.college, ns.start_year, ns.program, ns.campus, ns.unit, ns.created_at.date()])
 
     return response
