@@ -160,14 +160,13 @@ def create_test_offering():
     for i in range(20):
         userid = "0aaa%i" % (i)
         fname = randname(8)
-        p = Person(emplid=300000300 + i, userid=userid, last_name='Student', first_name=fname,
-                   middle_name=randname(6))
+        p = Person(emplid=300000300 + i, userid=userid, last_name='Student', first_name=fname)
         p.save()
         Member(person=p, offering=test_offering, role='STUD').save()
 
         userid = "0ggg%i" % (i)
         fname = randname(8)
-        p = Person(emplid=300000500 + i, userid=userid, last_name='Grad', first_name=fname, middle_name=randname(6))
+        p = Person(emplid=300000500 + i, userid=userid, last_name='Grad', first_name=fname)
         p.config['gender'] = random.choice(list(GENDER_DESCR.keys()))
         p.config['gpa'] = round(random.triangular(0.0, 4.33, 2.33), 2)
         p.config['visa'] = random.choice([x for x, _ in VISA_STATUSES])

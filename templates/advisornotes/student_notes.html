@@ -115,10 +115,6 @@ This prospective student was created on {{student.created_at}}.
                 <td>{{ student.first_with_pref }}</td>
             </tr>
             <tr>
-                <th>Middle Name</th>
-                <td>{{ student.middle_name|default:"—" }} </td>
-            </tr>
-            <tr>
                 <th>Student Number</th>
                 <td> {% if nonstudent %}
                 Not a student (<a href="{% url "advising:merge_nonstudent" nonstudent_slug=student.slug %}">Merge with existing student</a>)

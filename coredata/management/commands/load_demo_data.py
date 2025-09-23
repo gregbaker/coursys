@@ -44,7 +44,6 @@ class Command(BaseCommand):
                 userid='fake%03i' % (i,),
                 last_name='Fake',
                 first_name=random_name(8),
-                middle_name=random_name(5),
                 title=random.choice(['Mr', 'M', 'Ms', 'Dr'])
             ) for i in range(n_fake_students)]
             for p in fake_students:
@@ -56,7 +55,6 @@ class Command(BaseCommand):
                 userid='grad%03i' % (i,),
                 last_name='Grad',
                 first_name=random_name(8),
-                middle_name=random_name(5),
                 title=random.choice(['Mr', 'M', 'Ms', 'Dr'])
             ) for i in range(n_fake_grads)]
             for p in fake_grads:
