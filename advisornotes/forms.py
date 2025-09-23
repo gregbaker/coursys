@@ -158,14 +158,13 @@ class NonStudentForm(ModelForm):
     program = forms.ChoiceField(required=False, choices=PROGRAM_CHOICES_NONSTUDENT, label="Potential Program")
     first_name = forms.CharField(label="Preferred First Name")
     last_name = forms.CharField(label="Last Name")
-    middle_name = forms.CharField(label="Middle Name", required=False)
     high_school = forms.CharField(label="High School", required=False)
 
     class Meta:
         model = NonStudent
         exclude = ('config', 'notes', 'created_at', 'pref_first_name')
 
-    field_order = ['first_name', 'last_name', 'middle_name', 'gender', 'email_address', 
+    field_order = ['first_name', 'last_name', 'gender', 'email_address', 
                    'high_school', 'college', 'start_year', 'unit', 'program', 'preferred_campus']
 
     def __init__(self, *args, **kwargs):

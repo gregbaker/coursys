@@ -69,7 +69,6 @@ class NonStudent(models.Model):
     """
     last_name = models.CharField(max_length=32)
     first_name = models.CharField(max_length=32)
-    middle_name = models.CharField(max_length=32, null=True, blank=True)
     pref_first_name = models.CharField(max_length=32, null=True, blank=True)
     email_address = models.EmailField(null=True, blank=True, help_text="Needed only if you want to copy the student on notes")
     high_school = models.CharField(max_length=32, null=True, blank=True)
@@ -107,7 +106,7 @@ class NonStudent(models.Model):
         return "%s (Prospective %s)" % (self.name(), self.start_year)
 
     def unique_tuple(self):
-        return (self.first_name, self.middle_name, self.last_name, self.pref_first_name, self.high_school)
+        return (self.first_name, self.last_name, self.pref_first_name, self.high_school)
 
     def __hash__(self):
         return self.unique_tuple().__hash__()
