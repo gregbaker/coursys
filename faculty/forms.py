@@ -367,7 +367,6 @@ class PositionPersonForm(forms.Form):
 class FuturePersonForm(forms.ModelForm):
     first_name = forms.CharField(max_length=32, widget=forms.TextInput(attrs={'autofocus': True}))
     last_name = forms.CharField(max_length=32)
-    middle_name = forms.CharField(max_length=32, required=False)
     pref_first_name = forms.CharField(max_length=32, required=False)
     title = forms.CharField(max_length=4, required=False)
     email = forms.EmailField(required=False)

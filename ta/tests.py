@@ -11,7 +11,7 @@ class ApplicationTest(TestCase):
     def setUp(self):
         freshen_roles()
         p1 = Person(emplid=210012345, userid="test1",
-                last_name="Lname", first_name="Fname", pref_first_name="Fn", middle_name="M")
+                last_name="Lname", first_name="Fname", pref_first_name="Fn")
         p1.save()
         
         s = Semester(name="1077", start=date(2007,9,4), end=date(2007,12,3))

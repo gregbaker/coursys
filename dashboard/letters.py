@@ -719,7 +719,6 @@ class RARequestForm(SFUMediaMixin):
 
 
         self.c.setFillColor(black)
-        mi = ''
         email_address = str(self.ra.get_email_address())
         last_name = str(self.ra.get_last_name())
         first_name = str(self.ra.get_first_name())
@@ -728,8 +727,6 @@ class RARequestForm(SFUMediaMixin):
             emplid = 'No ID'
         else:
             emplid = str(self.ra.person.emplid)
-            if self.ra.person.middle_name:
-                mi = self.ra.person.middle_name[0]
 
         self.c.setFont("Helvetica-Bold", 8)
         self.c.drawString(1*mm, 185*mm, "SFU ID")
@@ -744,7 +741,6 @@ class RARequestForm(SFUMediaMixin):
         self.c.drawString(180*mm, 177*mm, "Initial")
         self._box_entry(18*mm, 175*mm, 69*mm, 6*mm, content=last_name)
         self._box_entry(106*mm, 175*mm, 71*mm, 6*mm, content=first_name)
-        self._box_entry(190*mm, 175*mm, 12*mm, 6*mm, content=mi)
 
         if self.ra.position_no != None:
             position_no = str(self.ra.position_no)
@@ -1604,10 +1600,6 @@ class RAForm(SFUMediaMixin):
         self.c.drawString(185*mm, 176*mm, "Initial")
         self._box_entry(1.5*mm, 165*mm, 87*mm, 7.5*mm, content=str(self.ra.person.last_name))
         self._box_entry(92*mm, 165*mm, 86*mm, 7.5*mm, content=str(self.ra.person.first_name))
-        mi = None
-        if self.ra.person.middle_name:
-            mi = self.ra.person.middle_name[0]
-        self._box_entry(183*mm, 165*mm, 19*mm, 7.5*mm, content=mi)
 
         self.c.setFont("Helvetica", 8)
         self.c.drawString(2.5*mm, 158*mm, "Department")
@@ -2479,10 +2471,6 @@ class GradeChangeForm(SFUMediaMixin):
         self.entry_font()
         self.c.drawString(15*mm, 196*mm, member.person.last_name)
         fname = member.person.first_name
-        if member.person.middle_name:
-            fname += ' ' + member.person.middle_name
-        #if member.person.pref_first_name:
-        #    fname += ' (' + member.person.pref_first_name + ')'
         self.c.drawString(115*mm, 196*mm, fname)
 
         # term info

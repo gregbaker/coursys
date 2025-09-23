@@ -10,7 +10,7 @@ class VisaTestCase(TestCase):
 
     def setUp(self):
         p1 = Person(emplid=210012345, userid="test1",
-                last_name="Lname", first_name="Fname", pref_first_name="Fn", middle_name="M")
+                last_name="Lname", first_name="Fname", pref_first_name="Fn")
         p1.save()
 
     def testApplication(self):

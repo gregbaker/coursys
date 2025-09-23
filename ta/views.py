@@ -2017,7 +2017,7 @@ def contracts_csv(request, post_slug):
     response['Content-Disposition'] = 'inline; filename="%s.csv"' % (posting.slug)
     writer = csv.writer(response)
     writer.writerow(['Batch ID', 'Term ID', 'Contract Signed', 'Benefits Indicator', 'EmplID', 'SIN',
-                     'Last Name', 'First Name 1', 'First Name 2', 'Payroll Start Date', 'Payroll End Date',
+                     'Last Name', 'First Name', 'Payroll Start Date', 'Payroll End Date',
                      'Action', 'Action Reason', 'Position Number', 'Job Code', 'Full_Part time', 'Pay Group',
                      'Employee Class', 'Category', 'Project', 'Object', 'Fund', 'Dept ID (cost center)', 'Program',
                      'Prep Units', 'Base Units', 'Appt Comp Freq', 'Semester Base Salary Rate',
@@ -2043,7 +2043,7 @@ def contracts_csv(request, post_slug):
             prep_units = ''
         
         row = [batchid, posting.semester.name, signed, benefits, c.application.person.emplid, c.application.sin]
-        row.extend([c.application.person.last_name, c.application.person.first_name, c.application.person.middle_name])
+        row.extend([c.application.person.last_name, c.application.person.first_name])
         row.extend([c.pay_start.strftime("%Y%m%d"), c.pay_end.strftime("%Y%m%d"), 'REH', 'REH'])
         row.extend(["%08i" % c.position_number.position_number, '', '', 'TSU', '', c.application.category])
         row.extend(['', c.position_number.account_number, 11, posting.unit.deptid(),  90150, prep_units, bu])
