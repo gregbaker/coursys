@@ -2,6 +2,7 @@ from django.core.validators import RegexValidator
 from django.db import models, transaction, IntegrityError
 from django.db.models import Count
 from autoslug import AutoSlugField
+from courselib.purge import AgePurgePolicy, PurgePolicy, ThisIsPublicData
 from courselib.slugs import make_slug
 from django.conf import settings
 import datetime, urllib.parse, decimal
@@ -9,6 +10,8 @@ from django.urls import reverse
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.core.mail import send_mail
+from django.utils import timezone
+
 from cache_utils.decorators import cached
 from courselib.json_fields import JSONField
 from courselib.json_fields import getter_setter, config_property
@@ -591,6 +594,9 @@ class Semester(models.Model):
 
     class Meta:
         ordering = ['name']
+    
+    purge_policy = ThisIsPublicData()
+
     def __lt__(self, other):
         return self.name < other.name
     def __le__(self, other):
@@ -849,6 +855,8 @@ class SemesterWeek(models.Model):
     class Meta:
         ordering = ['semester', 'week']
         unique_together = (('semester', 'week'))
+    
+    purge_policy = AgePurgePolicy(age_field='semester__end', after_days=365*2)
 
 
 HOLIDAY_TYPE_CHOICES = (
@@ -870,6 +878,8 @@ class Holiday(models.Model):
         return "%s on %s" % (self.description, self.date)
     class Meta:
         ordering = ['date']
+    
+    purge_policy = AgePurgePolicy(age_field='semester__end', after_days=365*2)
 
 
 class Course(models.Model, ConditionalSaveMixin):
@@ -892,6 +902,9 @@ class Course(models.Model, ConditionalSaveMixin):
     class Meta:
         unique_together = (('subject', 'number'),)
         ordering = ('subject', 'number')
+    
+    purge_policy = ThisIsPublicData()
+
     def __str__(self):
         return "%s %s" % (self.subject, self.number)
     def __lt__(self, other):
@@ -1070,6 +1083,8 @@ class CourseOffering(models.Model, ConditionalSaveMixin):
             ('semester', 'subject', 'number', 'section'),
             ('semester', 'crse_id', 'section'),
             ('semester', 'class_nbr'))
+    
+    purge_policy = ThisIsPublicData()
 
     def __str__(self):
         return "%s %s %s (%s)" % (self.subject, self.number, self.section, self.semester.label())
@@ -1275,7 +1290,6 @@ class Member(models.Model, ConditionalSaveMixin):
         ('INST', 'Instructor'),
         ('APPR', 'Grade Approver'),
         ('DROP', 'Dropped'),
-        #('AUD', 'Audit Student'),
     )
     REASON_CHOICES = (
         ('AUTO', 'Automatically added'),
@@ -1319,6 +1333,25 @@ class Member(models.Model, ConditionalSaveMixin):
     raw_bu, set_bu = getter_setter('bu')
     last_discuss, set_last_discuss = getter_setter('last_discuss')
     sched_print_instr, set_sched_print_instr = getter_setter('sched_print_instr')
+
+    class MemberPurgePolicy(PurgePolicy):
+        def purgeable_queryset(self, model_class):
+            """
+            Purge members by role, with time limits as appropriate.
+            """
+            assert model_class == Member
+            now = timezone.now()
+            year = datetime.timedelta(days=365)
+
+            purgable_students = Member.objects.filter(role='STUD', offering__semester__end__lt=now - 5*year)
+            purgable_tas = Member.objects.filter(role='TA', offering__semester__end__lt=now - 1*year)
+            purgable_approvers = Member.objects.filter(role='APPR', offering__semester__end__lt=now - 1*year)
+            purgable_drops = Member.objects.filter(role='DROP', offering__semester__end__lt=now)
+            # we consider instructors public and never purge them
+
+            return purgable_students | purgable_tas | purgable_approvers | purgable_drops
+    
+    purge_policy = MemberPurgePolicy()
     
     def __str__(self):
         return "%s (%s) in %s" % (self.person.userid, self.person.emplid, self.offering,)
@@ -1547,6 +1580,8 @@ class MeetingTime(models.Model):
         ordering = ['weekday']
         #unique_together = (('offering', 'weekday', 'start_time'), ('offering', 'weekday', 'end_time'))
     
+    purge_policy = AgePurgePolicy(age_field='offering__semester__end', after_days=365*2)
+    
     def export_dict(self):
         """
         Produce dictionary of data about meeting time that can be serialized as JSON
@@ -1602,6 +1637,8 @@ class Unit(models.Model):
 
     class Meta:
         ordering = ['label']
+    
+    purge_policy = ThisIsPublicData()
 
     def __str__(self):
         return "%s (%s)" % (self.name, self.label)
@@ -1825,6 +1862,8 @@ class CombinedOffering(models.Model):
 
     config = JSONField(null=False, blank=False, default=dict) # addition configuration stuff
 
+    purge_policy = AgePurgePolicy(age_field='semester__end', after_days=365*1)  # this does not purge the CourseOffering, just this note to combine on import
+
     def name(self):
         return "%s %s %s" % (self.subject, self.number, self.section)
 
@@ -1910,6 +1949,8 @@ class EnrolmentHistory(models.Model):
 
     class Meta:
         unique_together = (('offering', 'date'),)
+    
+    purge_policy = ThisIsPublicData()
 
     def __str__(self):
         return '%s@%s (%i, %i, %i) (%i, %i, %i)' % (self.offering.slug, self.date, self.enrl_cap, self.enrl_tot, self.wait_tot, self.enrl_drp, self.wait_drp, self.wait_add)

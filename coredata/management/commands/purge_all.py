@@ -1,6 +1,3 @@
-import importlib
-import inspect
-from types import ModuleType
 from django.core.management.base import BaseCommand
 from django.apps import apps
 
@@ -26,14 +23,15 @@ class Command(BaseCommand):
 
             try:
                 qs = policy.purgeable_queryset(cls)
+                print(type(qs))
                 print(f'Purging {qs.count()} instances of {cls.__name__}')
                 if commit:
                     qs.delete()
 
             except NotImplementedError:
                 try:
-                    items = policy.purgeable(cls)
-                    print(f'Purging instances of {cls.__name__}')
+                    items = list(policy.purgeable(cls))
+                    print(f'Purging {len(items)} instances of {cls.__name__}')
                     for i in items:
                         if commit:
                             i.delete()

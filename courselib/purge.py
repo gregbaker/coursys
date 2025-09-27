@@ -15,6 +15,9 @@ class PurgePolicy:
 
 @dataclass
 class AgePurgePolicy(PurgePolicy):
+    """
+    Policy for data that can simply be deleted after a certain time, based on some date or datetime field.
+    """
     age_field: str
     after_days: int
 
@@ -22,3 +25,11 @@ class AgePurgePolicy(PurgePolicy):
         cutoff = timezone.now() - datetime.timedelta(days=self.after_days)
         filter_kwargs = {f'{self.age_field}__lt': cutoff}
         return model_class.objects.filter(**filter_kwargs)
+
+
+class ThisIsPublicData(PurgePolicy):
+    """
+    Policy for data that is fully public and has no privacy or retention concerns.
+    """
+    def purgeable_queryset(self, model_class: Type[models.Model]) -> models.QuerySet[models.Model]:
+        return model_class.objects.none()
