@@ -429,6 +429,39 @@ class EnrolmentHistoryTest(TestCase):
         self.assertEqual(eh2[3].enrl_vals, (20, 30, 7))
         self.assertEqual(eh2[3].wait_vals, (1, 0, 0))
 
+class PurgingTest(TestCase):
+    fixtures = ['basedata', 'coredata']
+
+    def test_purge_foreign_keys(self):
+        """
+        Make sure the reflection hacks in PurgeIfNoForeignKeyReferences are working as expected: it seems like they might be fragile under Djanguo upgrades.
+        """
+        from courselib.purge import PurgeIfNoForeignKeyReferences
+
+        keys = set(PurgeIfNoForeignKeyReferences.all_foreign_keys_to(CourseOffering))
+        m2m = [f for f in CourseOffering._meta.get_fields() if f.name == 'members'][0]
+        o2m = [f for f in CourseOffering._meta.get_fields() if f.name == 'semester'][0]
+        data = [f for f in CourseOffering._meta.get_fields() if f.name == 'subject'][0]
+        self.assertIn(m2m, keys)  # a ManyToManyField so should be found
+        self.assertIn(o2m, keys)  # a ForeignKey so should be found
+        self.assertNotIn(data, keys)  # not a foreign key so shouldn't be found
+
+
+        p = Person(emplid=210012345, userid="test1", first_name="Fname", last_name="Lname")
+        p.save()
+
+        # p should be purgeable now: no foreign keys reference it.
+        purge_policy = PurgeIfNoForeignKeyReferences()
+        purgeable = purge_policy.purgeable_queryset(Person)
+        self.assertIn(p, purgeable)
+
+        # but with a reference, it shouldn't be.
+        r = Role(person=p, role="SYSA", unit=Unit.objects.get(label="UNIV"), expiry=TEST_ROLE_EXPIRY)
+        r.save()
+        purgeable = purge_policy.purgeable_queryset(Person)
+        self.assertNotIn(p, purgeable)
+        
+
 
 class SearchTest(TestCase):
     fixtures = ['basedata', 'coredata']

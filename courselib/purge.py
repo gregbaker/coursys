@@ -9,27 +9,6 @@ def flatten(xss):  # from https://stackoverflow.com/a/952952
     return (x for xs in xss for x in xs)
 
 
-def all_foreign_keys_to(model_class: Type[models.Model]) -> Iterable[models.ForeignObjectRel]:
-    """
-    Return a dict mapping model classes to lists of model classes that have ForeignKey references to them.
-    """
-    return (field for field in model_class._meta.get_fields() if isinstance(field, models.ForeignObjectRel))
-
-
-def all_instances_referenced(model_class: Type[models.Model]) -> set[models.Model]:
-    """
-    Return all instances of model_class that are referenced by any other model via ForeignKey or GenericForeignKey.
-    """
-    fk_fields = all_foreign_keys_to(model_class)
-    referenced = (
-        set(field.related_model.objects.filter(
-            **{f'{field.field.name}__isnull': False}
-        ).values_list(field.field.name, flat=True))
-        for field in fk_fields
-    )
-    return set(flatten(referenced))
-
-
 class PurgePolicy:
     """
     Abstract base class for data purge policies.
@@ -70,7 +49,28 @@ class PurgeIfNoForeignKeyReferences(PurgePolicy):
     Possible enhancement: keep config field to mark when it was identifies as having no references, and only purge a fixed time after that;
     or accept some kind of additional filter in the constructor?
     """
+    @staticmethod
+    def all_foreign_keys_to(model_class: Type[models.Model]) -> Iterable[models.ForeignObjectRel]:
+        """
+        Return a dict mapping model classes to lists of model classes that have ForeignKey references to them.
+        """
+        return (field for field in model_class._meta.get_fields() if isinstance(field, models.ForeignObjectRel))
+
+    @staticmethod
+    def all_instances_referenced(model_class: Type[models.Model]) -> set[models.Model]:
+        """
+        Return all instances of model_class that are referenced by any other model via ForeignKey or GenericForeignKey.
+        """
+        fk_fields = PurgeIfNoForeignKeyReferences.all_foreign_keys_to(model_class)
+        referenced = (
+            set(field.related_model.objects.filter(
+                **{f'{field.field.name}__isnull': False}
+            ).values_list(field.field.name, flat=True))
+            for field in fk_fields
+        )
+        return set(flatten(referenced))
+
     def purgeable_queryset(self, model_class):
-        refs = all_instances_referenced(model_class)
+        refs = PurgeIfNoForeignKeyReferences.all_instances_referenced(model_class)
         unreferenced = model_class.objects.exclude(pk__in=refs)
         return unreferenced
