@@ -2,14 +2,11 @@ import datetime
 from dataclasses import dataclass
 from typing import Iterable, Type
 from django.db import models
-from django.db.models.fields.related import RelatedField
-from django.contrib.contenttypes.fields import GenericForeignKey
 from django.utils import timezone
-from django.apps import apps
 
 
 def flatten(xss):  # from https://stackoverflow.com/a/952952
-    return [x for xs in xss for x in xs]
+    return (x for xs in xss for x in xs)
 
 
 def all_foreign_keys_to(model_class: Type[models.Model]) -> Iterable[models.ForeignObjectRel]:
@@ -19,6 +16,18 @@ def all_foreign_keys_to(model_class: Type[models.Model]) -> Iterable[models.Fore
     return (field for field in model_class._meta.get_fields() if isinstance(field, models.ForeignObjectRel))
 
 
+def all_instances_referenced(model_class: Type[models.Model]) -> set[models.Model]:
+    """
+    Return all instances of model_class that are referenced by any other model via ForeignKey or GenericForeignKey.
+    """
+    fk_fields = all_foreign_keys_to(model_class)
+    referenced = (
+        set(field.related_model.objects.filter(
+            **{f'{field.field.name}__isnull': False}
+        ).values_list(field.field.name, flat=True))
+        for field in fk_fields
+    )
+    return set(flatten(referenced))
 
 
 class PurgePolicy:
@@ -52,3 +61,16 @@ class ThisIsPublicData(PurgePolicy):
     """
     def purgeable_queryset(self, model_class: Type[models.Model]) -> models.QuerySet[models.Model]:
         return model_class.objects.none()
+
+
+class PurgeIfNoForeignKeyReferences(PurgePolicy):
+    """
+    Policy for data that can be deleted if no other data references it via ForeignKey or ManyToManyField.
+
+    Possible enhancement: keep config field to mark when it was identifies as having no references, and only purge a fixed time after that;
+    or accept some kind of additional filter in the constructor?
+    """
+    def purgeable_queryset(self, model_class):
+        refs = all_instances_referenced(model_class)
+        unreferenced = model_class.objects.exclude(pk__in=refs)
+        return unreferenced

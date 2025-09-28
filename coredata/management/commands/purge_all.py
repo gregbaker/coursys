@@ -28,13 +28,8 @@ class Command(BaseCommand):
                     qs.delete()
 
             except NotImplementedError:
-                try:
-                    items = list(policy.purgeable_instances(cls))
-                    print(f'Purging {len(items)} instances of {cls.__name__}')
-                    for i in items:
-                        if commit:
-                            i.delete()
-
-                except NotImplementedError:
-                    print(f'PurgePolicy for {cls} does not implement a purge method')
-                    continue
+                items = list(policy.purgeable_instances(cls))
+                print(f'Purging {len(items)} instances of {cls.__name__}')
+                for i in items:
+                    if commit:
+                        i.delete()

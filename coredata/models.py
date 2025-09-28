@@ -2,7 +2,7 @@ from django.core.validators import RegexValidator
 from django.db import models, transaction, IntegrityError
 from django.db.models import Count
 from autoslug import AutoSlugField
-from courselib.purge import AgePurgePolicy, PurgePolicy, ThisIsPublicData
+from courselib.purge import AgePurgePolicy, PurgeIfNoForeignKeyReferences, PurgePolicy, ThisIsPublicData
 from courselib.slugs import make_slug
 from django.conf import settings
 import datetime, urllib.parse, decimal
@@ -194,15 +194,7 @@ class Person(models.Model, ConditionalSaveMixin):
     # Added for consistency with FuturePerson instead of manually having to probe the config
     birthdate, _ = getter_setter('birthdate')
 
-    class PersonPurgePolicy(PurgePolicy):
-        def purgeable_instances(self, model_class):
-            from courselib.purge import all_foreign_keys_to
-            assert model_class == Person
-            refs = all_foreign_keys_to(Person)
-            list(refs)
-            return []
-
-    purge_policy = PersonPurgePolicy()
+    purge_policy = PurgeIfNoForeignKeyReferences()
 
     @staticmethod
     def emplid_header():
@@ -384,6 +376,7 @@ class FuturePerson(models.Model):
     _, set_assigned = getter_setter('assigned')
 
     objects = FuturePersonManager()
+    purge_policy = PurgeIfNoForeignKeyReferences()
 
     def __str__(self):
         return "%s, %s" % (self.last_name, self.first_name)
@@ -444,6 +437,8 @@ class RoleAccount(models.Model):
     description = models.CharField(max_length=255, null=True, blank=True)
     config = JSONField(null=False, blank=False, default=dict) # addition configuration stuff
 
+    purge_policy = PurgeIfNoForeignKeyReferences()
+
     class Meta:
         unique_together = (('userid', 'type'),)
 
@@ -474,6 +469,8 @@ class AnyPerson(models.Model):
     person = models.ForeignKey(Person, on_delete=models.SET_NULL, null=True, blank=True)
     future_person = models.ForeignKey(FuturePerson, on_delete=models.SET_NULL, null=True, blank=True)
     role_account = models.ForeignKey(RoleAccount, on_delete=models.SET_NULL, null=True, blank=True)
+
+    purge_policy = PurgeIfNoForeignKeyReferences()
 
     def get_person(self):
         return self.person or self.role_account or self.future_person
