@@ -1,6 +1,7 @@
 import datetime
 from dataclasses import dataclass
 from typing import Iterable, Type
+from django.apps import apps
 from django.db import models
 from django.utils import timezone
 
@@ -50,11 +51,20 @@ class PurgeIfNoForeignKeyReferences(PurgePolicy):
     or accept some kind of additional filter in the constructor?
     """
     @staticmethod
-    def all_foreign_keys_to(model_class: Type[models.Model]) -> Iterable[models.ForeignObjectRel]:
+    def all_foreign_keys_to(model_class: Type[models.Model]) -> Iterable[models.ForeignKey | models.ManyToManyField]:
         """
-        Return a dict mapping model classes to lists of model classes that have ForeignKey references to them.
+        Return all ForeignKey and ManyToManyField fields in the project that point to model_class.
         """
-        return (field for field in model_class._meta.get_fields() if isinstance(field, models.ForeignObjectRel))
+        app_models = apps.get_models()
+        fk_fields = flatten(
+            (
+                field for field in m._meta.get_fields()
+                if isinstance(field, (models.ForeignKey, models.ManyToManyField))
+                and field.related_model == model_class
+            )
+            for m in app_models
+        )
+        return fk_fields
 
     @staticmethod
     def all_instances_referenced(model_class: Type[models.Model]) -> set[models.Model]:
@@ -63,9 +73,9 @@ class PurgeIfNoForeignKeyReferences(PurgePolicy):
         """
         fk_fields = PurgeIfNoForeignKeyReferences.all_foreign_keys_to(model_class)
         referenced = (
-            set(field.related_model.objects.filter(
-                **{f'{field.field.name}__isnull': False}
-            ).values_list(field.field.name, flat=True))
+            set(field.model.objects.filter(
+                **{f'{field.name}__isnull': False}
+            ).values_list(field.name, flat=True))
             for field in fk_fields
         )
         return set(flatten(referenced))
