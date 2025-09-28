@@ -23,19 +23,18 @@ class Command(BaseCommand):
 
             try:
                 qs = policy.purgeable_queryset(cls)
-                print(type(qs))
                 print(f'Purging {qs.count()} instances of {cls.__name__}')
                 if commit:
                     qs.delete()
 
             except NotImplementedError:
                 try:
-                    items = list(policy.purgeable(cls))
+                    items = list(policy.purgeable_instances(cls))
                     print(f'Purging {len(items)} instances of {cls.__name__}')
                     for i in items:
                         if commit:
                             i.delete()
 
                 except NotImplementedError:
-                    print(f'PurgePolicy for {cls} does not implement either method')
+                    print(f'PurgePolicy for {cls} does not implement a purge method')
                     continue

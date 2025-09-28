@@ -194,6 +194,16 @@ class Person(models.Model, ConditionalSaveMixin):
     # Added for consistency with FuturePerson instead of manually having to probe the config
     birthdate, _ = getter_setter('birthdate')
 
+    class PersonPurgePolicy(PurgePolicy):
+        def purgeable_instances(self, model_class):
+            from courselib.purge import all_foreign_keys_to
+            assert model_class == Person
+            refs = all_foreign_keys_to(Person)
+            list(refs)
+            return []
+
+    purge_policy = PersonPurgePolicy()
+
     @staticmethod
     def emplid_header():
         return "ID Number"
