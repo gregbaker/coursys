@@ -434,7 +434,8 @@ class PurgingTest(TestCase):
 
     def test_purge_foreign_keys(self):
         """
-        Make sure the reflection hacks in PurgeIfNoForeignKeyReferences are working as expected: it seems like they might be fragile under Djanguo upgrades.
+        Make sure the reflection hacks in PurgeIfNoForeignKeyReferences are working as expected:
+        it seems like they might be fragile under Django upgrades.
         """
         from courselib.purge import PurgeIfNoForeignKeyReferences
 
@@ -442,10 +443,12 @@ class PurgingTest(TestCase):
         keys = set(PurgeIfNoForeignKeyReferences.all_foreign_keys_to(Person))
         m2m = [f for f in CourseOffering._meta.get_fields() if f.name == 'members'][0]
         o2m = [f for f in Role._meta.get_fields() if f.name == 'person'][0]
-        data = [f for f in Role._meta.get_fields() if f.name == 'role'][0]
+        data1 = [f for f in Role._meta.get_fields() if f.name == 'role'][0]
+        data2 = [f for f in Person._meta.get_fields() if f.name == 'userid'][0]
         self.assertIn(m2m, keys)  # a ManyToManyField so should be found
         self.assertIn(o2m, keys)  # a ForeignKey so should be found
-        self.assertNotIn(data, keys)  # not a foreign key so shouldn't be found
+        self.assertNotIn(data1, keys)  # not a foreign key so shouldn't be found
+        self.assertNotIn(data2, keys)  # not a foreign key so shouldn't be found
 
         p = Person(emplid=210012345, userid="test1", first_name="Fname", last_name="Lname")
         p.save()
@@ -464,7 +467,6 @@ class PurgingTest(TestCase):
         self.assertIn(p, referenced)
         purgeable = purge_policy.purgeable_queryset(Person)
         self.assertNotIn(p, purgeable)
-        
 
 
 class SearchTest(TestCase):
