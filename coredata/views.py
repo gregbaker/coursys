@@ -21,11 +21,14 @@ from django.contrib import messages
 from cache_utils.decorators import cached
 from haystack.query import SearchQuerySet
 import socket, json, datetime, os
-import iso8601
 from functools import reduce
 from operator import itemgetter
 import csv
 from django.db.models import Max, Min
+from tacontracts.models import TAContract
+from ra.models import RARequest, RAAppointment
+from ta.models import TAContract as OldTAContract
+from grad.models import GradStudent
 
 @requires_global_role("SYSA")
 def sysadmin(request):
@@ -205,7 +208,16 @@ def user_summary(request, userid):
     roles = Role.objects_fresh.filter(person=person).exclude(role="NONE").select_related('unit')
     groups = FormGroupMember.objects.filter(person=person).order_by('formgroup__name')    
 
-    context = {'person': person, 'memberships': memberships, 'roles': roles, 'groups': groups}
+    gradprograms = GradStudent.objects.filter(person=person).select_related('program')
+
+    tacontracts = TAContract.objects.filter(person=person, status__in=['NEW', 'SGN'])
+    oldcontracts = OldTAContract.objects.filter(application__person=person, status__in=['NEW', 'SGN', 'ACC'])   
+
+    ras = RARequest.objects.filter(person=person, deleted=False, complete=True, draft=False)
+    oldras = RAAppointment.objects.filter(person=person, deleted=False)
+    
+    context = {'person': person, 'memberships': memberships, 'roles': roles, 'groups': groups, 
+               'tacontracts': tacontracts, 'oldcontracts': oldcontracts, 'ras': ras, 'oldras': oldras, 'gradprograms': gradprograms}
     return render(request, "coredata/user_summary.html", context)
 
 
@@ -1485,9 +1497,9 @@ def _offering_meeting_time_data(request, offering):
     fullcalendar.js data for this offering's events
     """
     try:
-        st = iso8601.parse_date(request.GET['start'])
-        en = iso8601.parse_date(request.GET['end'])
-    except (KeyError, ValueError, iso8601.ParseError):
+        st = datetime.datetime.fromisoformat(request.GET['start'])
+        en = datetime.datetime.fromisoformat(request.GET['end'])
+    except (KeyError, ValueError):
         return NotFoundResponse(request, errormsg="Bad request")
 
     local_tz = pytz.timezone(settings.TIME_ZONE)
@@ -1647,7 +1659,7 @@ def _course_drop_data(offering):
 
     return data
 
-@requires_role('ADMN')
+@requires_role(['ADMN', 'REPV'])
 def course_enrolment_download(request, course_slug):
     """
     Download enrolment data for a course offering
@@ -1669,7 +1681,7 @@ def course_enrolment_download(request, course_slug):
     return response
 
 
-@requires_role('ADMN')
+@requires_role(['ADMN', 'REPV'])
 def course_enrolment(request, course_slug):
     """
     Enrolment data and analytics for a course offering

@@ -20,7 +20,7 @@ def grad_program_changes(acad_prog):
     return list(db)
 
 @SIMS_problem_handler
-@cache_by_args
+#@cache_by_args
 def grad_appl_program_changes(acad_prog):
     """
     ps_adm_appl_data records where the fee has actually been paid: we don't bother looking at them until then.
@@ -172,6 +172,7 @@ def grad_scholarships(emplids):
                                                 WHEN PROG_STATUS = 'AC' AND PROG_ACTION = 'RADM' THEN 'ACTI'
                                                 WHEN PROG_STATUS = 'AC' AND PROG_ACTION = 'PRGC' THEN 'ACTI'
                                                 WHEN PROG_STATUS = 'CM' AND PROG_ACTION = 'COMP' THEN 'GRAD'
+                                                WHEN PROG_STATUS = 'AC' AND PROG_ACTION = 'DEFR' THEN 'ACTI'
                                                 ELSE 'None'
                                             END AS translated_Status
                                             FROM PS_ACAD_PROG AP

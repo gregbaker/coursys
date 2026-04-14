@@ -24,7 +24,6 @@ from coredata.models import Semester, Person
 from grad.models import STATUS_APPLICANT
 from courselib.branding import product_name
 from ra.forms import CS_CONTACT, ENSC_CONTACT, SEE_CONTACT, MSE_CONTACT, FAS_CONTACT
-import iso8601;
 from textwrap import wrap
 
 PAPER_SIZE = letter
@@ -516,7 +515,7 @@ class FASLetterheadTemplate(FASLetterPageTemplate):
     def __init__(self, *args, **kwargs):
         FASLetterPageTemplate.__init__(self, *args, **kwargs)
         self.faculty = "FACULTY OF APPLIED SCIENCES"
-        self.address = ['Applied Science Building 9861', '8888 University Drive', 'Burnaby, B.C. Canada V5A 1S6']
+        self.address = ['Applied Sciences Building, ASB 10700', '8888 University Drive', 'Burnaby, B.C. Canada V5A 1S6']
         self.tel = "+1 778 782 4724"
         self.fax = "+1 778 782 5802"
         self.web = "www.sfu.ca/fas"

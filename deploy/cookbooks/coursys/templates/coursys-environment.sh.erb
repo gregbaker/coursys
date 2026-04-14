@@ -1,3 +1,7 @@
+PYTHON="<%= @python %>"
+export PYTHON
+PATH="<%= @python_bin_dir %>":${PATH}
+
 COURSYS_USER="<%= @coursys_user %>"
 export COURSYS_USER
 COURSYS_USER_HOME="/home/<%= @coursys_user %>"

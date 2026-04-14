@@ -12,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 from ta.models import TUG, Skill, SkillLevel, TAApplication, TAPosting, TAContract, TACourse, CoursePreference, \
     CampusPreference, CourseDescription, \
     CAMPUS_CHOICES, PREFERENCE_CHOICES, LEVEL_CHOICES, PREFERENCES, LEVELS, LAB_BONUS, LAB_BONUS_DECIMAL, HOURS_PER_BU, \
-    HOLIDAY_HOURS_PER_BU, LAB_PREP_HOURS, TAContractEmailText, TAWorkloadReview, TAEvaluation
+    HOLIDAY_HOURS_PER_BU, LAB_PREP_HOURS, TAContractEmailText, TAWorkloadReview, TAEvaluation, TACONTRACT_DEFAULT_REMARK
 from tacontracts.models import TACourse as NewTACourse
 from ra.models import Account
 from grad.models import GradStudent, STATUS_REAL_PROGRAM, STATUS_ACTIVE
@@ -23,19 +23,18 @@ from grad.models import GradStatus, GradStudent, Supervisor
 from ta.forms import TUGForm, TAApplicationForm, TAContractForm, TAAcceptanceForm, CoursePreferenceForm, \
     TAPostingForm, TAPostingBUForm, BUFormSet, TACourseForm, BaseTACourseFormSet, AssignBUForm, TAContactForm, \
     CourseDescriptionForm, LabelledHidden, NewTAContractForm, TAContractEmailTextForm, TAWorkloadReviewForm, \
-    TAEvaluationForm, TAEvaluationFormbyTA
+    TAEvaluationForm, TAEvaluationFormbyTA, TAAcceptTermsForm
 from advisornotes.forms import StudentSearchForm
 from log.models import LogEntry
 from dashboard.letters import ta_form, ta_forms, tug_form, taworkload_form, ta_evaluation_form
 from django.forms.models import inlineformset_factory
 from django.forms.formsets import formset_factory
 from django.core.paginator import Paginator, EmptyPage, InvalidPage
-import datetime, decimal, locale 
+import datetime, decimal 
 import csv
 from ta.templatetags import ta_display
 import json
 from . import bu_rules
-import iso8601;
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from collections import OrderedDict
@@ -53,10 +52,9 @@ from tacontracts.models import HiringSemester
 # prod > 1247
 TUG_FORMAT_CUTOFF = '1247'
 
-locale.setlocale( locale.LC_ALL, 'en_CA.UTF-8' ) #fiddle with this if you cant get the following function to work
 def _format_currency(i):
     """used to properly format money"""
-    return locale.currency(float(i), grouping=True)
+    return ta_display.to_dollars(i)
 
 
 def _create_news(person, url, from_user, accept_deadline, total_bu ):
@@ -615,6 +613,19 @@ def _edit_tug(request, course_slug, userid, tug=None):
     else:  
         tssu_link = 'https://www.sfu.ca/human-resources/tssu.html'
 
+	# copy the TUG numbers from a previous term of a TA 
+    # in the same course, same instructor, same number of BUs
+    copytug = None
+    try:
+        previoustug = TUG.objects.filter(member__offering__semester=tug.member.offering.semester.previous_semester(), member__role="TA", member__person=member.person, 
+                                     member__offering__subject=tug.member.offering.subject, member__offering__number=tug.member.offering.number, base_units=bu).first()
+        if previoustug:
+            for instructor in previoustug.member.offering.instructors():
+                if (instructor.userid == request.user.username):                
+                    copytug = previoustug
+    except:
+        copytug = None
+
     context = {'ta':member.person,
                'course':course,
                'form':form,
@@ -625,6 +636,7 @@ def _edit_tug(request, course_slug, userid, tug=None):
                'HOLIDAY_HOURS_PER_BU': HOLIDAY_HOURS_PER_BU,
                'tssu_link': tssu_link,
                'draft': draft,                
+               'previoustug': copytug,
                }
     return render(request,'ta/edit_tug.html',context)
 
@@ -1314,6 +1326,7 @@ def _new_application(request, post_slug, manual=False, userid=None):
             ta_form.fields['resume'].required = False
         if application.transcript:
             ta_form.fields['transcript'].required = False
+        ta_form.fields['physical_present_declare'].initial = True
         ta_form.add_extra_questions(posting)
         cp_init = [{'course': cp.course, 'taken': cp.taken, 'exper':cp.exper} for cp in old_coursepref]
         search_form = None
@@ -1851,6 +1864,7 @@ def assign_bus(request, post_slug, course_slug):
                             # if we've added to the contract, we've invalidated it. 
                             contract = contracts[0]
                             contract.status = "NEW"
+                            contract.remarks = TACONTRACT_DEFAULT_REMARK
                         else:
                             contract = TAContract(created_by=request.user.username)
                             contract.first_assign(applicants[i], posting)
@@ -1929,6 +1943,10 @@ def all_contracts(request, post_slug):
                 contract.status = 'OPN'
                 _create_news(app, offer_url, from_user, contract.deadline, contract.total_bu())
                 contract.save()
+                l = LogEntry(userid=request.user.username,
+                description="Update contract status to Offered (by send button) for %s." % (contract.application.person.name()),
+                related_object=contract)
+                l.save()  
                 ccount += 1
                 
         if ccount > 1:
@@ -1962,9 +1980,9 @@ def all_contracts(request, post_slug):
             crs_list += course.course.subject+" "+course.course.number+" "+course.course.section+" ("+str(course.total_bu)+")\n"
         contract.crs_list = crs_list
         if contract.status == 'ACC' and contract.config.get('accepted_date') is not None:            
-            contract.accrej_date = iso8601.parse_date(contract.config.get('accepted_date'))
+            contract.accrej_date = datetime.datetime.fromisoformat(contract.config.get('accepted_date'))
         if contract.status == 'REJ' and contract.config.get('rejected_date') is not None:
-            contract.accrej_date = iso8601.parse_date(contract.config.get('rejected_date'))    
+            contract.accrej_date = datetime.datetime.fromisoformat(contract.config.get('rejected_date'))    
             
     #postings = TAPosting.objects.filter(unit__in=request.units).exclude(Q(semester=posting.semester))
     applications = TAApplication.objects.filter(posting=posting).exclude(Q(id__in=TAContract.objects.filter(posting=posting).values_list('application', flat=True)))
@@ -2001,9 +2019,9 @@ def contracts_table_csv(request, post_slug):
 
         statusdate = ''
         if c.status == 'ACC' and c.config.get('accepted_date') is not None:            
-            statusdate = iso8601.parse_date(c.config.get('accepted_date')).strftime("%Y/%m/%d")
+            statusdate = datetime.datetime.fromisoformat(c.config.get('accepted_date')).strftime("%Y/%m/%d")
         if c.status == 'REJ' and c.config.get('rejected_date') is not None:
-            statusdate = iso8601.parse_date(c.config.get('rejected_date')).strftime("%Y/%m/%d")
+            statusdate = datetime.datetime.fromisoformat(c.config.get('rejected_date')).strftime("%Y/%m/%d")
 
         writer.writerow([c.application.person, c.application.person.email(), citizen, c.get_appt_category_display() + '(' + c.appt_category + ')',
                          c.application.rank, c.get_status_display(), statusdate, c.total_bu(), c.crs_list, c.deadline])
@@ -2137,6 +2155,8 @@ def accept_contract(request, post_slug, userid, preview=False):
     else:   
         form = TAContractForm(instance=contract) 
 
+    termsform = TAAcceptTermsForm()
+
     context = { 'contract':contract, 
                 'courses':courses,
                 'pay':_format_currency(contract.pay_per_bu),
@@ -2150,6 +2170,7 @@ def accept_contract(request, post_slug, userid, preview=False):
                 'form':form,
                 'preview': preview,
                 'deadline_passed': deadline_passed,
+                'termsform': termsform
             }
     return render(request, 'ta/accept.html', context)
 
@@ -2286,22 +2307,21 @@ def edit_contract(request, post_slug, userid):
     if request.method == "POST":
         form = TAContractForm(request.POST, instance=contract)
         
-        if request.is_ajax():
-            if('appt_cat' in request.POST):
-                index = posting.cat_index(request.POST['appt_cat'])
-                results = posting.salary()[index] + ',' + posting.scholarship()[index] + ',' + str(posting.accounts()[index])
-                return HttpResponse(results)
-            if('course' in request.POST):
-                course = request.POST['course']
-                co = get_object_or_404(CourseOffering, pk=course)
-                req_bu = posting.required_bu(co)
-                assigned_bu = posting.assigned_bu(co)
-                #subtracting assigned_bu from req_bu
-                if(assigned_bu > req_bu):
-                    req_bu = 0.0
-                else:
-                    req_bu -= assigned_bu
-                return HttpResponse(str(req_bu))
+        if 'appt_cat' in request.POST:
+            index = posting.cat_index(request.POST['appt_cat'])
+            results = f'{posting.salary()[index]},{posting.scholarship()[index]},{posting.accounts()[index]}'
+            return HttpResponse(results)
+        elif 'course' in request.POST:
+            course = request.POST['course']
+            co = get_object_or_404(CourseOffering, pk=course)
+            req_bu = posting.required_bu(co)
+            assigned_bu = posting.assigned_bu(co)
+            #subtracting assigned_bu from req_bu
+            if(assigned_bu > req_bu):
+                req_bu = 0.0
+            else:
+                req_bu -= assigned_bu
+            return HttpResponse(str(req_bu))
         elif form.is_valid():
             contract = form.save(commit=False)
             formset = TACourseFormset(request.POST, instance=contract)
@@ -2336,6 +2356,12 @@ def edit_contract(request, post_slug, userid):
                 formset.save()
                 contract.save()
 
+                if contract.status == 'OPN':
+                    l = LogEntry(userid=request.user.username,
+                        description="Update contract status to Offered for %s." % (contract.application.person.name()),
+                        related_object=contract)
+                    l.save()
+                    
                 if not editing:
                     messages.success(request, "Created TA Contract for %s for %s." % (contract.application.person, posting))
                 else:
@@ -2890,7 +2916,7 @@ def download_financial(request, post_slug):
                      'Total Amount'])
     for o in offerings:
         writer.writerow([o.name(), o.instructors_str(), '(%s/%s)' % (o.enrl_tot, o.enrl_cap), o.get_campus_display(),
-                         posting.ta_count(o), posting.assigned_bu(o), locale.currency(float(posting.total_pay(o)))])
+                         posting.ta_count(o), posting.assigned_bu(o), _format_currency(posting.total_pay(o))])
     return response
 
 def _contact_people(posting, statuses):

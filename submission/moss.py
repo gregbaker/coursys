@@ -46,7 +46,9 @@ MOSS_LANGUAGES_CHOICES = sorted([
 
 
 class MOSSError(RuntimeError):
-    pass
+    def __init__(self, message: str, extra: Optional[str] = None):
+        super().__init__(message)
+        self.extra = extra
 
 
 def check_moss_executable(passed, failed):
@@ -87,7 +89,7 @@ match_file_re = re.compile(r'^match(\d+)-([01])\.html$')
 
 
 @transaction.atomic
-def run_moss(main_activity: Activity, activities: List[Activity], language: str, result: SimilarityResult) -> SimilarityResult:
+def run_moss(main_activity: Activity, activities: List[Activity], language: str, result: SimilarityResult, bs_backend: str = 'html5lib') -> SimilarityResult:
     """
     Run MOSS for the main_activity's submissions.
     ... comparing past submission from everything in the activities list.
@@ -136,20 +138,21 @@ def run_moss(main_activity: Activity, activities: List[Activity], language: str,
         raise MOSSError('No files found for that language to analyze with MOSS.')
 
     # run MOSS
+    os.makedirs(moss_out_dir, exist_ok=True)
     moss_pl = os.path.join(settings.MOSS_DISTRIBUTION_PATH, 'moss.pl')
     cmd = [moss_pl, '-l', language, '-o', moss_out_dir] + moss_files
     try:
-        res = subprocess.run(cmd, cwd=settings.MOSS_DISTRIBUTION_PATH)
+        res = subprocess.run(cmd, cwd=settings.MOSS_DISTRIBUTION_PATH, capture_output=True)
     except FileNotFoundError:
         raise MOSSError('System not correctly configured with the MOSS executable.')
     if res.returncode != 0:
-        raise MOSSError('MOSS command failed: ' + str(cmd))
+        raise MOSSError('MOSS command failed: ' + str(cmd), extra=str(res.stderr))
 
     # try to deal with MOSS' [profanity suppressed] HTML, and produce SimilarityData objects to represent everything
     for f in os.listdir(moss_out_dir):
         if f == 'index.html':
             data = open(os.path.join(moss_out_dir, f), 'rt', encoding='utf8').read()
-            soup = bs4.BeautifulSoup(data, 'lxml')
+            soup = bs4.BeautifulSoup(data, features=bs_backend)
             index_data = []
             for tr in soup.find_all('tr'):
                 if tr.find('th'):
@@ -174,7 +177,7 @@ def run_moss(main_activity: Activity, activities: List[Activity], language: str,
 
         elif match_top_re.match(f):
             data = open(os.path.join(moss_out_dir, f), 'rt', encoding='utf8').read()
-            soup = bs4.BeautifulSoup(data, 'lxml')
+            soup = bs4.BeautifulSoup(data, features=bs_backend)
             table = soup.find('table')
 
             del table['bgcolor']
@@ -196,7 +199,7 @@ def run_moss(main_activity: Activity, activities: List[Activity], language: str,
                 data = open(os.path.join(moss_out_dir, f), 'rt', encoding='utf8').read()
             except UnicodeDecodeError:
                 data = open(os.path.join(moss_out_dir, f), 'rt', encoding='windows-1252').read()
-            soup = bs4.BeautifulSoup(data, 'lxml')
+            soup = bs4.BeautifulSoup(data, bs_backend)
 
             # find the input filename, which leads to the submission
             for c in soup.find('body').children:
@@ -221,6 +224,8 @@ def run_moss(main_activity: Activity, activities: List[Activity], language: str,
             raise ValueError('unexpected file produced by MOSS')
 
     result.config['complete'] = True
+    result.config['moss_stdout'] = res.stdout
+    result.config['moss_stderr'] = res.stderr
     result.save()
     return result
 
@@ -250,6 +255,7 @@ class MOSS(object):
         self.result = result
 
     class CreationForm(forms.Form):
+        tool = forms.CharField(initial='moss', widget=forms.HiddenInput())
         language = forms.ChoiceField(label='MOSS language', choices=MOSS_LANGUAGES_CHOICES)
         other_offering_activities = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, required=False,
             help_text='Also compare against submissions for these activities from other sections')

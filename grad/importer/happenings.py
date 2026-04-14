@@ -1,6 +1,6 @@
 from .parameters import SIMS_SOURCE, DATE_OFFSET, DATE_OFFSET_START, RELEVANT_DATA_START, CMPT_CUTOFF
 from .queries import metadata_translation_tables, research_translation_tables
-from .tools import semester_lookup, STRM_MAP
+from .tools import semester_lookup, strm_to_semester
 
 from coredata.models import Unit
 from coredata.queries import add_person
@@ -38,6 +38,7 @@ def build_program_map():
     program_map['MSEMS'] = GradProgram.objects.get(label="M.A.Sc.", unit=mechunit)
     program_map['MESMS'] = GradProgram.objects.get(label="M.Eng.", unit=mechunit)
     program_map['MSEGX'] = GradProgram.objects.get(label="GrExc", unit=mechunit)
+    program_map['MSEND'] = GradProgram.objects.get(label="Special Non-Degree", unit=mechunit)
     program_map['MECHVRS'] = GradProgram.objects.get(label="V.R.S.", unit=mechunit)
     program_map['ESMEN'] = GradProgram.objects.get(label="M.Eng.", unit=engunit)
     program_map['ESMAS'] = GradProgram.objects.get(label="M.A.Sc.", unit=engunit)
@@ -133,7 +134,7 @@ class GradHappening(object):
             strm = self.admit_term
         else:
             try:
-                strm = semester_lookup[self.effdt + offset].pop().data
+                strm = semester_lookup(self.effdt + offset)
             except KeyError:
                 # ignore things
                 # from the long-long ago
@@ -390,7 +391,7 @@ class ProgramStatusChange(GradHappening):
             if self.gradstatus:
                 self.gradstatus.found_in_import = True
                 assert st.status == self.status
-                assert (st.start == STRM_MAP[self.strm]) or ('sims_source' in st.config and st.config['sims_source'] == self.import_key())
+                assert (st.start == strm_to_semester(self.strm)) or ('sims_source' in st.config and st.config['sims_source'] == self.import_key())
 
 
     def update_status(self, student_info, verbosity, dry_run):
@@ -426,7 +427,7 @@ class ProgramStatusChange(GradHappening):
         self.gradstatus.found_in_import = True
 
         assert st.status == self.status
-        st.start = STRM_MAP[self.strm]
+        st.start = strm_to_semester(self.strm)
         st.start_date = self.effdt
         st.config[SIMS_SOURCE] = self.import_key()
         st.config.update(self.status_config())
@@ -486,7 +487,7 @@ class ProgramStatusChange(GradHappening):
                 if verbosity > 1:
                     print("* Adjusting program change start: %s/%s in %s as of %s." % (self.emplid, self.unit.slug, self.grad_program.slug, strm))
                 ph = next_history[0]
-                ph.start_semester = STRM_MAP[strm]
+                ph.start_semester = strm_to_semester(strm)
                 ph.starting = self.effdt
             else:
                 # no history: create
@@ -504,7 +505,7 @@ class ProgramStatusChange(GradHappening):
                 # don't usually report first ever ProgramHistory because those are boring
                 print("Adding program change: %s/%s in %s as of %s." % (self.emplid, self.unit.slug, self.grad_program.slug, strm))
             ph = GradProgramHistory(student=student_info['student'], program=self.grad_program,
-                    start_semester=STRM_MAP[strm], starting=self.effdt)
+                    start_semester=strm_to_semester(strm), starting=self.effdt)
             ph.config[SIMS_SOURCE] = key
             student_info['programs'].append(ph)
             student_info['programs'].sort(key=lambda p: (p.start_semester.name, p.starting))
@@ -548,7 +549,7 @@ class GradSemester(GradHappening):
         self.unt_taken_prgrss = unt_taken_prgrss
         self.status = 'ACTI'
 
-        self.semester = STRM_MAP[self.strm]
+        self.semester = strm_to_semester(self.strm)
         self.effdt = self.semester.start # taking classes starts at the start of classes
 
         self.acad_prog_to_gradprogram()
@@ -726,7 +727,7 @@ class ScholarshipDisbursement(GradHappening):
         self.descr = descr
         self.disbursed_balance = Decimal(str(disbursed_balance)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         self.acad_prog = acad_prog
-        self.semester = STRM_MAP[self.strm]
+        self.semester = strm_to_semester(self.strm)
         self.effdt = self.semester.start
         self.eligible = eligible
 

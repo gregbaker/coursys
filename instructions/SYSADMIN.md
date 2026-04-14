@@ -108,6 +108,10 @@ Some information about the way the process started is in the systemd logs: `sudo
 
 Celery's main log file are `/opt/logs/celery-*`. A separate log file is kept for each queue/worker.
 
+### Python Dependancies
+
+On the production server, Python libraries are installed in a virtualenv in `/venv`, so the Python executable that should be used for everything is `/venv/bin/python`: that will use those libraries. That *should* be taken care of by the server config: that directory is in the user `$PATH` before others, and the various services are configured to use that executable.
+
 
 ## Server Updates
 

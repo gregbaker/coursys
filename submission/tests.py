@@ -303,10 +303,10 @@ class SubmissionTest(TestCase):
         client.login_user("ggbaker")
 
         component1 = URL.Component(activity=activity, title='Sample URL 1', description='Please submit some URL.',
-                                   check=False, prefix='')
+                                   check_exists=False, prefix='')
         component1.save()
         component2 = URL.Component(activity=activity, title='Sample URL 2', description='Please submit some URL.',
-                                   check=False, prefix='')
+                                   check_exists=False, prefix='')
         component2.save()
 
         test_views(self, client, 'offering:submission:', ['show_components', 'add_component'],
@@ -363,11 +363,9 @@ class SubmissionTest(TestCase):
             test_views(self, client, 'offering:submission:', ['add_component'],
                    {'course_slug': offering.slug, 'activity_slug': activity.slug}, qs='type='+label)
 
-
-
-
-
-
-
-
-
+    def test_similarity_sanity(self):
+        # make sure the language choices are consistent for the code similarity checkers
+        from submission.moss import MOSS_LANGUAGES, MOSS_LANGUAGES_CHOICES
+        from submission.jplag import JPLAG_LANGUAGES, JPLAG_LANGUAGES_CHOICES
+        self.assertEqual(set(MOSS_LANGUAGES.keys()), set(k for k, _ in MOSS_LANGUAGES_CHOICES))
+        self.assertEqual(set(JPLAG_LANGUAGES.keys()), set(k for k, _ in JPLAG_LANGUAGES_CHOICES))

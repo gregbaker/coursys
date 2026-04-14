@@ -7,11 +7,15 @@ deploy_mode = node['deploy_mode'] || 'devel'
 domain_name = node['external_hostname'] || 'localhost'
 username = node['username']
 user_home = "/home/#{username}/"
-python_version = `python3 -c "import sys; print('%i.%i' % (sys.version_info.major, sys.version_info.minor))"`.strip
-python_lib_dir = "/usr/local/lib/python#{python_version}/dist-packages"
 data_root = '/opt'
 rabbitmq_password = node['rabbitmq_password'] || 'supersecretpassword'
 http_proxy = node['http_proxy']
+
+virtualenv = '/venv/'
+python = "#{virtualenv}/bin/python"
+python_version = `#{python} -c "import sys; print('%i.%i' % (sys.version_info.major, sys.version_info.minor))"`.strip
+python_bin_dir = "#{virtualenv}/bin/"
+python_lib_dir = "#{virtualenv}/lib/python#{python_version}/dist-packages"
 
 raise 'Bad deploy_mode' unless ['devel', 'proddev', 'demo', 'production'].include?(deploy_mode)
 
@@ -32,7 +36,7 @@ end
 
 # basic requirements to run/build
 package ['python3', 'python3-pip', 'git', 'mercurial', 'npm', 'libmariadb-dev-compat', 'libz-dev',
-    'unixodbc-dev', 'rsync', 'libfreetype-dev']
+    'unixodbc-dev', 'rsync', 'libfreetype-dev', 'pkg-config', 'unzip', 'virtualenv']
 if deploy_mode == 'devel'
   package ['sqlite3']
 end
@@ -64,12 +68,18 @@ template '/etc/profile.d/coursys-environment.sh' do
     :data_root => data_root,
     :rabbitmq_password => rabbitmq_password,
     :http_proxy => http_proxy,
+    :python => python,
+    :python_bin_dir => python_bin_dir,
   )
 end
 
 # Python and JS deps
+execute "create venv" do
+  command "virtualenv #{virtualenv}"
+  creates python
+end
 execute "install_pip_requirements" do
-  command "python3 -m pip install -r #{coursys_dir}/requirements.txt || python3 -m pip install -r #{coursys_dir}/requirements.txt --break-system-packages"
+  command "#{python} -m pip install -r #{coursys_dir}/requirements.txt"
   creates "#{python_lib_dir}/django/__init__.py"
 end
 execute "npm-install" do
@@ -103,7 +113,8 @@ if deploy_mode != 'devel'
 
   # docker
   execute 'docker-key' do
-    command 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -'
+    command 'mkdir -p /etc/apt/keyrings/ && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg'
+    creates '/etc/apt/keyrings/docker.gpg'
   end
   directory "/lib/systemd/system/docker.service.d" do
     owner 'root'
@@ -117,15 +128,9 @@ if deploy_mode != 'devel'
       )
     end
   end
-  apt_repository 'docker' do
-    uri 'https://download.docker.com/linux/ubuntu/'
-    components ['stable']
-    distribution ubuntu_release
-    arch 'amd64'
-    #key '7EA0A9C3F273FCD8'
-    #keyserver 'keyserver.ubuntu.com'
-    action :add
-    deb_src false
+  execute 'docker-sources' do
+    command "echo 'Types: deb\nURIs: https://download.docker.com/linux/ubuntu\nSuites: #{ubuntu_release}\nComponents: stable\nSigned-By: /etc/apt/keyrings/docker.asc' > /etc/apt/sources.list.d/docker.sources"
+    creates '/etc/apt/sources.list.d/docker.sources'
   end
   package ['docker', 'docker-compose']
   cookbook_file "/etc/docker/daemon.json" do
@@ -159,16 +164,21 @@ if deploy_mode != 'devel'
     mode '0755'
     action :create
   end
+  directory '/data/elasticsearch7' do
+    owner 1000
+    mode '0755'
+  end
+
 
   execute "pyopenssh-fix" do
     # this is a hack around a broken pip3 + pyOpenSSL install, per https://stackoverflow.com/a/74243128/6871666
     # It should only fire if currently needed (the "not_if" guard)
-    command "wget https://files.pythonhosted.org/packages/54/a7/2104f674a5a6845b04c8ff01659becc6b8978ca410b82b94287e0b1e018b/pyOpenSSL-24.1.0-py3-none-any.whl -O /tmp/pyOpenSSL-24.1.0-py3-none-any.whl && python3 -m easy_install /tmp/pyOpenSSL-24.1.0-py3-none-any.whl"
-    not_if "pip3 > /dev/null"
+    command "wget https://files.pythonhosted.org/packages/54/a7/2104f674a5a6845b04c8ff01659becc6b8978ca410b82b94287e0b1e018b/pyOpenSSL-24.1.0-py3-none-any.whl -O /tmp/pyOpenSSL-24.1.0-py3-none-any.whl && #{python} -m easy_install /tmp/pyOpenSSL-24.1.0-py3-none-any.whl"
+    not_if "#{python_bin_dir}/pip > /dev/null"
   end
 
   execute "django-static" do
-    command "python3 manage.py collectstatic --no-input"
+    command "#{python} manage.py collectstatic --no-input"
     cwd coursys_dir
     environment ({ 'COURSYS_STATIC_DIR' => "#{data_root}/static", 'COURSYS_DATA_ROOT' => data_root })
     user username
@@ -199,6 +209,8 @@ if deploy_mode != 'devel'
         :coursys_dir => coursys_dir,
         :username => username,
         :data_root => data_root,
+        :python => python,
+        :python_bin_dir => python_bin_dir,
       )
     end
     execute "systemctl enable #{service}" do
@@ -211,6 +223,8 @@ if deploy_mode != 'devel'
       :coursys_dir => coursys_dir,
       :username => username,
       :data_root => data_root,
+      :python => python,
+      :python_bin_dir => python_bin_dir,
     )
   end
   directory '/opt/run/celery' do
@@ -245,12 +259,12 @@ if deploy_mode != 'devel'
   cron "celery check" do
     user username
     minute '10'
-    command ". /etc/profile.d/coursys-environment.sh; python3 /coursys/manage.py ping_celery"
+    command ". /etc/profile.d/coursys-environment.sh; python /coursys/manage.py ping_celery"
   end
   cron "celery restart" do
     user 'root'
     minute '0'
-    hour '7'
+    hour '5,11,17,23 '
     command "systemctl restart celery celerybeat"
   end
 
@@ -402,7 +416,7 @@ if deploy_mode != 'devel'
     end
   end
   execute "moss-unpack" do
-    command "unzip moss.zip"
+    command "unzip #{user_home}/moss.zip"
     cwd user_home
     user username
     creates "#{user_home}/moss/moss.pl"
@@ -433,3 +447,5 @@ if deploy_mode == 'production'
     notifies :restart, 'service[ssh]', :immediately
   end
 end
+
+execute "systemctl daemon-reload"
