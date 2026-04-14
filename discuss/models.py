@@ -10,6 +10,7 @@ from courselib.json_fields import getter_setter
 from courselib.branding import product_name
 from courselib.markup import ParserFor, ensure_sanitary_markup, markup_to_html
 from autoslug import AutoSlugField
+from courselib.purge import AgePurgePolicy
 from courselib.slugs import make_slug
 import datetime
 
@@ -67,6 +68,8 @@ class DiscussionTopic(models.Model):
     defaults = {'markup': 'creole', 'math': False,}
     markup, set_markup = getter_setter('markup')
     math, set_math = getter_setter('math')
+
+    purge_policy = AgePurgePolicy(age_field='offering__semester__end', after_days=365*8)
 
     def save(self, *args, **kwargs):
         if self.status not in [status[0] for status in TOPIC_STATUSES]:
@@ -156,6 +159,8 @@ class DiscussionMessage(models.Model):
     math, set_math = getter_setter('math')
     markup, set_markup = getter_setter('markup')
     #brushes, set_brushes = getter_setter('brushes')
+
+    purge_policy = AgePurgePolicy(age_field='topic__offering__semester__end', after_days=365*8)
 
     def save(self, *args, **kwargs):
         if self.status not in [status[0] for status in MESSAGE_STATUSES]:
@@ -264,6 +269,8 @@ class DiscussionSubscription(models.Model, _DiscussionEmailMixin):
     status = models.CharField(max_length=4, choices=DISCUSSION_SUB_STATUSES, default='NONE',
                               verbose_name='Notification',
                               help_text='Action to take when a new topic is posted')
+    
+    purge_policy = AgePurgePolicy(age_field='member__offering__semester__end', after_days=365*2)
 
     def notify(self, topic):
         if self.status == 'NONE' or self.member.role == 'DROP':

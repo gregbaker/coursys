@@ -10,7 +10,8 @@ def flatten(xss):  # from https://stackoverflow.com/a/952952
 
 class Command(BaseCommand):
     def add_arguments(self, parser):
-        parser.add_argument('--dry-run', action='store_true')
+        parser.add_argument('--dry-run', action='store_true', default=False)
+        parser.add_argument('--verbose', action='store_true', default=False)
     
     def handle(self, *args, **options):
         commit = not options['dry_run']
@@ -24,12 +25,17 @@ class Command(BaseCommand):
             try:
                 qs = policy.purgeable_queryset(cls)
                 print(f'Purging {qs.count()} instances of {cls.__name__}')
+                if options['verbose']:
+                    print(f"... {qs}")
                 if commit:
                     qs.delete()
 
             except NotImplementedError:
                 items = list(policy.purgeable_instances(cls))
                 print(f'Purging {len(items)} instances of {cls.__name__}')
+                if options['verbose']:
+                    items = list(items)
+                    print(f"... {items}")
                 for i in items:
                     if commit:
                         i.delete()

@@ -5,6 +5,7 @@ from collections import Counter
 from typing import Dict, Any, List
 
 from courselib.branding import product_name
+from courselib.purge import AgePurgePolicy
 from courselib.search import haystack_index
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -95,6 +96,8 @@ class Forum(models.Model):
     enabled = config_property('enabled', default=True)  # use the discussion forum for this course?
     identity = config_property('identity', default='INST')  # level of anonymity allowed in this course
 
+    purge_policy = AgePurgePolicy(age_field='offering__semester__end', after_days=365*8)
+
     @classmethod
     def for_offering_or_404(cls, offering: CourseOffering) -> 'Forum':
         try:
@@ -140,6 +143,8 @@ class Identity(models.Model):
     avatar_type = config_property('avatar_type', default='none')
     anon_avatar_type = config_property('anon_avatar_type', default='none')
     regen_count = config_property('regen_count', default=0)
+
+    purge_policy = AgePurgePolicy(age_field='offering__semester__end', after_days=365*8)
 
     class Meta:
         unique_together = [
@@ -264,6 +269,8 @@ class Post(models.Model):
     instr_answer = config_property('instr_answer', default=False)  # an instructor-written answer exists
     approved_answer = config_property('approved_answer', default=False)  # an instructor-approved answer exists
     asker_approved_answer = config_property('asker_approved_answer', default=False)  # an asker-approved answer exists
+
+    purge_policy = AgePurgePolicy(age_field='offering__semester__end', after_days=365*8)
 
     class Meta:
         unique_together = [
@@ -453,6 +460,7 @@ class Thread(models.Model):
     was_broadcast = config_property('was_broadcast', False)  # was this an broadcast_announcement thread that was pushed?
 
     objects = ThreadManager.from_queryset(ThreadQuerySet)()
+    purge_policy = AgePurgePolicy(age_field='post__offering__semester__end', after_days=365*8)
 
     class Meta:
         ordering = ('-pin', '-last_activity')
@@ -571,6 +579,7 @@ class Reply(models.Model):
     config = JSONField(null=False, blank=False, default=dict)
 
     objects = ReplyManager.from_queryset(ReplyQuerySet)()
+    purge_policy = AgePurgePolicy(age_field='thread__post__offering__semester__end', after_days=365*8)
 
     class Meta:
         ordering = ('post__created_at',)
@@ -651,6 +660,8 @@ class ReadThread(models.Model):
     thread = models.ForeignKey(Thread, on_delete=models.CASCADE)
     updated_at = models.DateTimeField(auto_now=True, null=False, blank=False)
 
+    purge_policy = AgePurgePolicy(age_field='member__offering__semester__end', after_days=365*4)
+
     class Meta:
         unique_together = [
             ('member', 'thread'),
@@ -672,6 +683,8 @@ class ReadReply(models.Model):
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
     reply = models.ForeignKey(Reply, on_delete=models.CASCADE)
     updated_at = models.DateTimeField(auto_now=True, null=False, blank=False)
+
+    purge_policy = AgePurgePolicy(age_field='member__offering__semester__end', after_days=365*4)
 
     class Meta:
         unique_together = [
@@ -720,7 +733,9 @@ class Reaction(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
     reaction = models.CharField(max_length=4, null=False, blank=False, choices=REACTION_CHOICES)
     created_at = models.DateTimeField(auto_now=True, null=False, blank=False)
-
+    
+    purge_policy = AgePurgePolicy(age_field='member__offering__semester__end', after_days=365*8)
+    
     class Meta:
         unique_together = [
             ('member', 'post'),

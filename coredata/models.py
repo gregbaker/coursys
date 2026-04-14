@@ -1350,7 +1350,7 @@ class Member(models.Model, ConditionalSaveMixin):
             now = timezone.now()
             year = datetime.timedelta(days=365)
 
-            purgable_students = Member.objects.filter(role='STUD', offering__semester__end__lt=now - 8*year)
+            purgable_students = Member.objects.filter(role='STUD', offering__semester__end__lt=now - 8*year)  # should be >= things that reference student Members
             purgable_tas = Member.objects.filter(role='TA', offering__semester__end__lt=now - 1*year)
             purgable_approvers = Member.objects.filter(role='APPR', offering__semester__end__lt=now - 1*year)
             purgable_drops = Member.objects.filter(role='DROP', offering__semester__end__lt=now)
