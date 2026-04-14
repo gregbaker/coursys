@@ -81,6 +81,10 @@ class PurgeIfNoForeignKeyReferences(PurgePolicy):
         return set(flatten(referenced))
 
     def purgeable_queryset(self, model_class):
+        # TODO: reactivate purgeable_queryset_real when convinced it's fully safe
+        return model_class.objects.none()
+
+    def purgeable_queryset_real(self, model_class):
         refs = PurgeIfNoForeignKeyReferences.all_instances_referenced(model_class)
         unreferenced = model_class.objects.exclude(pk__in=refs)
         return unreferenced

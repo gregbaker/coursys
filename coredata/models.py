@@ -863,7 +863,7 @@ class SemesterWeek(models.Model):
         ordering = ['semester', 'week']
         unique_together = (('semester', 'week'))
     
-    purge_policy = AgePurgePolicy(age_field='semester__end', after_days=365*2)
+    purge_policy = AgePurgePolicy(age_field='semester__end', after_days=365*5)
 
 
 HOLIDAY_TYPE_CHOICES = (
@@ -886,7 +886,7 @@ class Holiday(models.Model):
     class Meta:
         ordering = ['date']
     
-    purge_policy = AgePurgePolicy(age_field='semester__end', after_days=365*2)
+    purge_policy = AgePurgePolicy(age_field='semester__end', after_days=365*5)
 
 
 class Course(models.Model, ConditionalSaveMixin):
@@ -1350,7 +1350,7 @@ class Member(models.Model, ConditionalSaveMixin):
             now = timezone.now()
             year = datetime.timedelta(days=365)
 
-            purgable_students = Member.objects.filter(role='STUD', offering__semester__end__lt=now - 5*year)
+            purgable_students = Member.objects.filter(role='STUD', offering__semester__end__lt=now - 8*year)
             purgable_tas = Member.objects.filter(role='TA', offering__semester__end__lt=now - 1*year)
             purgable_approvers = Member.objects.filter(role='APPR', offering__semester__end__lt=now - 1*year)
             purgable_drops = Member.objects.filter(role='DROP', offering__semester__end__lt=now)
@@ -1587,7 +1587,7 @@ class MeetingTime(models.Model):
         ordering = ['weekday']
         #unique_together = (('offering', 'weekday', 'start_time'), ('offering', 'weekday', 'end_time'))
     
-    purge_policy = AgePurgePolicy(age_field='offering__semester__end', after_days=365*2)
+    purge_policy = AgePurgePolicy(age_field='offering__semester__end', after_days=365*5)
     
     def export_dict(self):
         """
