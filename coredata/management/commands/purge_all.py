@@ -10,13 +10,14 @@ def flatten(xss):  # from https://stackoverflow.com/a/952952
 
 class Command(BaseCommand):
     def add_arguments(self, parser):
-        parser.add_argument('--dry-run', action='store_true', default=False)
+        parser.add_argument('--actually-delete', action='store_true', default=False)
         parser.add_argument('--verbose', action='store_true', default=False)
     
     def handle(self, *args, **options):
-        commit = not options['dry_run']
+        commit = options['actually_delete']
         model_classes = flatten(i.get_models() for i in apps.get_app_configs())
         purgeable = [c for c in model_classes if hasattr(c, 'purge_policy')]
+        # TODO: does purgeable need to be topologically-sorted by foreign key references?
 
         for cls in purgeable:
             policy = getattr(cls, 'purge_policy')
@@ -36,6 +37,6 @@ class Command(BaseCommand):
                 if options['verbose']:
                     items = list(items)
                     print(f"... {items}")
-                for i in items:
-                    if commit:
+                if commit:
+                    for i in items:
                         i.delete()
