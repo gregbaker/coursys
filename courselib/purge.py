@@ -1,13 +1,41 @@
 import datetime
 from dataclasses import dataclass
-from typing import Iterable, Type
+from typing import Iterable, Type, TypeVar
 from django.apps import apps
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
+from courselib import graphlib  # can be simply "import graphlib" in Python >= 3.9
 
 
-def flatten(xss):  # from https://stackoverflow.com/a/952952
+T = TypeVar('T')
+def flatten(xss: Iterable[Iterable[T]]) -> Iterable[T]:  # from https://stackoverflow.com/a/952952
     return (x for xs in xss for x in xs)
+
+
+def toposort(model_classes: Iterable[Type[models.Model]]) -> Iterable[Type[models.Model]]:
+    """
+    Sort the model classes so foreign-key-related things are removed in the a legal order.
+    """
+    graph = {
+        cls: {m.model for m in PurgeIfNoForeignKeyReferences.all_foreign_keys_to(cls) if m.model != cls}
+        for cls in model_classes
+    }
+    ts = graphlib.TopologicalSorter(graph)
+    return ts.static_order()
+    
+
+def purge_all(verbosity: int = 0, commit: bool = False) -> None:
+    """
+    For each model class with a .purge_policy, actually do the purging.
+    """
+    model_classes = flatten(i.get_models() for i in apps.get_app_configs())
+    model_classes = toposort(model_classes)
+    purgeable = [c for c in model_classes if hasattr(c, 'purge_policy')]
+
+    for cls in purgeable:
+        policy = getattr(cls, 'purge_policy')
+        assert(isinstance(policy, PurgePolicy))
+        policy.purge_purgable(cls, verbosity=verbosity, commit=commit)
 
 
 class PurgePolicy:
@@ -19,6 +47,51 @@ class PurgePolicy:
         raise NotImplementedError()
     def purgeable_instances(self, model_class: Type[models.Model]) -> Iterable[models.Model]:
         raise NotImplementedError()
+    
+    def all_filefields(self, model_class: Type[models.Model]) -> list[models.FileField]:
+        return [f for f in model_class._meta.get_fields() if isinstance(f, models.FileField)]
+    
+    def purge_purgable(self, model_class: Type[models.Model], verbosity: int = 1, commit: bool = False) -> None:
+        filefields = self.all_filefields(model_class)
+
+        try:
+            to_delete = self.purgeable_queryset(model_class)
+
+        except NotImplementedError:
+            to_delete = list(self.purgeable_instances(model_class))
+            if verbosity > 0:
+                print(f'Purging {len(to_delete)} instances of {model_class.__name__}')
+        
+        else:
+            if verbosity > 0:
+                print(f'Purging {to_delete.count()} instances of {model_class.__name__}')
+            if not filefields:
+                # the easy case: can just .delete the whole queryset and be done with it.
+                if verbosity > 1:
+                    print(f"   deleting {to_delete}")
+
+                if commit:
+                    to_delete.delete()
+                
+                return
+
+        if verbosity == 2:
+            print(f"  deleting {to_delete}")
+
+        # handle either/both: it's a list that we have to iterate through; there are FileFields that need their files deleted
+        for i in to_delete:
+            if verbosity > 2:
+                print(f"  deleting {i}")
+            if commit:
+                with transaction.atomic():
+                    # If this fails mid-transaction, it would probably leave the instance in an inconsistent state:
+                    # referencing files that are no longer there. On the bright side, we can fix it by deleting the
+                    # row, since it's scheduled to be purged anyway.
+                    for ff in filefields:
+                        fieldfile = getattr(i, ff.name)
+                        if fieldfile is not None:
+                            fieldfile.delete(save=False)
+                    i.delete()
 
 
 @dataclass

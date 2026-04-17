@@ -1,6 +1,7 @@
 from django.db import models
 from autoslug import AutoSlugField
 from coredata.models import Member, CourseOffering, Person
+from courselib.purge import AgePurgePolicy, ThisIsPublicData
 from dashboard.models import NewsItem
 from django.db import transaction
 from django.db.models import Count
@@ -104,6 +105,8 @@ class Activity(models.Model):
     multisubmit, set_multisubmit = getter_setter('multisubmit')
     calculation_leak, set_calculation_leak = getter_setter('calculation_leak')
     quiz_marking, set_quiz_marking = getter_setter('quiz_marking')
+
+    purge_policy = ThisIsPublicData()
 
     def __str__(self):
         return "%s - %s" % (self.offering, self.name)
@@ -514,6 +517,8 @@ class NumericGrade(models.Model):
     flag = models.CharField(max_length=4, null=False, choices=FLAG_CHOICES, help_text='Status of the grade', default='NOGR')
     comment = models.TextField(null=True, max_length=COMMENT_LENGTH)
     
+    purge_policy = AgePurgePolicy(age_field='activity__offering__semester__end', after_days=365*8)
+
     def __str__(self):
         return "Member[%s]'s grade[%s] for [%s]" % (self.member.person.userid, self.value, self.activity)
 
@@ -612,6 +617,8 @@ class LetterGrade(models.Model):
     letter_grade = models.CharField(max_length=2, null=False, choices=LETTER_GRADE_CHOICES)
     flag = models.CharField(max_length=4, null=False, choices=FLAG_CHOICES, help_text='Status of the grade', default='NOGR')
     comment = models.TextField(null=True, max_length=COMMENT_LENGTH)
+
+    purge_policy = AgePurgePolicy(age_field='activity__offering__semester__end', after_days=365*8)
     
     def __str__(self):
         return "Member[%s]'s letter grade[%s] for [%s]" % (self.member.person.userid, self.letter_grade, self.activity)
@@ -822,6 +829,8 @@ class GradeHistory(models.Model):
 
     timestamp = models.DateTimeField(auto_now_add=True)
     #ip = models.GenericIPAddressField() # TODO when we're safely on Django 1.4+?
+
+    purge_policy = AgePurgePolicy(age_field='activity__offering__semester__end', after_days=365*2)  # since this is an audit-trail kind of thing, we purge after appeals deadline
 
     class Meta:
         ordering = ['-timestamp']

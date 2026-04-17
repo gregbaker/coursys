@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
+import datetime
+
 from django.test import TestCase
 from django.urls import reverse
 from django.utils.safestring import mark_safe, SafeText
 from pages.models import Page, PageVersion, MACRO_LABEL, PagePermission
-from coredata.models import CourseOffering, Member, Person
+from coredata.models import CourseOffering, Member, Person, Semester, Course, Unit
+from django.core.files.uploadedfile import SimpleUploadedFile
 from grades.models import Activity
 from courselib.testing import TEST_COURSE_SLUG, Client, test_views
 from courselib.markup import ParserFor, markup_to_html
@@ -569,3 +572,50 @@ class PagesTest(TestCase):
         v1.save()
 
         self.assertEqual(v1.wikitext, '<em>Some</em> HTML')
+
+    def _create_test_data(self):
+        # a very-old course with pages, to test old-data purging
+        u = Unit.objects.get(label='CMPT')
+        crs = Course.objects.get(subject='CMPT', number='120')
+        s, _ = Semester.objects.get_or_create(name='1007', start='2000-09-01', end='2000-12-10')
+        o, _ = CourseOffering.objects.get_or_create(subject='CMPT', number='120', section='D100', semester=s, component='LEC', owner=u, enrl_cap=100, enrl_tot=99, wait_tot=0, course=crs)
+        m, _ = Member.objects.get_or_create(offering=o, person=Person.objects.get(userid='ggbaker'), role='INST')
+        p1, _ = Page.objects.get_or_create(offering=o, label='Private', can_read='STUD')
+        pv11, _ = PageVersion.objects.get_or_create(page=p1, title='Private', wikitext='## Hello1', editor=m, created_at='2000-09-09')
+        pv12, _ = PageVersion.objects.get_or_create(page=p1, title='Private', wikitext='## Hello2', editor=m, created_at='2000-09-10')
+        pv13, _ = PageVersion.objects.get_or_create(page=p1, title='Private', wikitext='## Hello3', editor=m, created_at='2000-09-11')
+
+        p2, _ = Page.objects.get_or_create(offering=o, label='Public', can_read='ALL')
+        pv21, _ = PageVersion.objects.get_or_create(page=p2, title='Public', wikitext='## Hello1', editor=m, created_at='2000-09-12')
+        pv22, _ = PageVersion.objects.get_or_create(page=p2, title='Public', wikitext='## Hello2', editor=m, created_at='2000-09-13')
+
+        return o.slug
+
+
+    def test_purging(self):
+        slug = self._create_test_data()
+        self.assertEqual(PageVersion.objects.filter(page__offering__slug=slug).count(), 5)
+
+        # test file purge as well
+        o = CourseOffering.objects.get(slug=slug)
+        p3, _ = Page.objects.get_or_create(offering=o, label='PrivateFile', can_read='STUD')
+        pv31, _ = PageVersion.objects.get_or_create(page=p3, title='Private', file_attachment=SimpleUploadedFile('test_file.txt', b'text file contents'), editor=o.member_set.get(), created_at='2000-09-09')
+        pv31.save()
+
+        pp = PageVersion.purge_policy
+        pp.purge_purgable(PageVersion, commit=True, verbosity=0)
+
+        # the public pages should remain
+        self.assertEqual(PageVersion.objects.filter(page__offering__slug=slug).count(), 2)
+
+        # newer offerings shouldn't purge
+        self._create_test_data()
+        s = Semester.objects.get(name='1007')
+        s.start = datetime.date.today()
+        s.end = datetime.date.today()
+        s.save()
+        self.assertEqual(PageVersion.objects.filter(page__offering__slug=slug).count(), 7)
+
+        pp = PageVersion.purge_policy
+        pp.purge_purgable(PageVersion, commit=True, verbosity=0)
+        self.assertEqual(PageVersion.objects.filter(page__offering__slug=slug).count(), 7)

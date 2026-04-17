@@ -20,6 +20,8 @@ class Group(models.Model):
     #if this bool value is true, then when a new group activity is created, it will call the add_activity_to_group_auto function to create corresponding GroupMembers for that activity.
     groupForSemester = models.BooleanField(default = True)
 
+    purge_policy = AgePurgePolicy(age_field='courseoffering__semester__end', after_days=365*8)
+
     # preface slug with "g-" to avoid conflict with userids (so they can be used in same places in URLs)
     def autoslug(self):
         s = make_slug(self.name)
@@ -59,8 +61,10 @@ class GroupMember(models.Model):
     confirmed = models.BooleanField(default = False)
     activity = models.ForeignKey(Activity, on_delete=models.PROTECT)
 
+    purge_policy = AgePurgePolicy(age_field='group__courseoffering__semester__end', after_days=365*8)
+
     def __str__(self):
-	    return '%s@%s/%s' % (self.student.person, self.group, self.activity.short_name)
+        return '%s@%s/%s' % (self.student.person, self.group, self.activity.short_name)
 
     class Meta:
         unique_together = ("student", "activity")

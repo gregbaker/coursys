@@ -1,9 +1,12 @@
+from typing import Type
+
 from django.db import models, transaction
 from django.conf import settings
 from django.utils.safestring import mark_safe
 from django.core.cache import cache
 from django.urls import reverse
 from coredata.models import CourseOffering, Member, Person
+from courselib.purge import AgePurgePolicy
 from grades.models import Activity
 
 from courselib.json_fields import JSONField
@@ -66,6 +69,15 @@ class Page(models.Model):
         # p.config['migrated_to']: if this page was migrated to a new location, the new (offering.slug, page.label)
         # p.config['migrated_from']: if this page was migrated from an old location, the old (offering.slug, page.label)
         # p.config['prevent_redirect']: if True, don't do a redirect, even if migration settings look like it should.
+    
+    class PagePurgePolicy(AgePurgePolicy):
+        # This is AgePurgePolicy except do NOT purge publicly-visible pages, taking those as unrestricted public data.
+        def purgeable_queryset(self, model_class: Type[models.Model]) -> models.QuerySet[models.Model]:
+            assert model_class == Page
+            qs = super().purgeable_queryset(model_class)
+            return qs.exclude(can_read="ALL")
+        
+    purge_policy = PagePurgePolicy(age_field='offering__semester__end', after_days=365*8)
 
     defaults = {'releasedate': None, 'editdate': None}
     releasedate_txt, set_releasedate_txt = getter_setter('releasedate')
@@ -212,6 +224,16 @@ class PageVersion(models.Model):
         # p.config['brushes']: used SyntaxHighlighter brushes (list of strings) -- no longer used with highlight.js
         # p.config['depth']: max depth of diff pages below me (to keep it within reason)
         # p.config['redirect_reason']: if present, how this redirect got here: 'rename' or 'delete'.
+    
+    class VersionPurgePolicy(AgePurgePolicy):
+        # This is AgePurgePolicy except do NOT purge publicly-visible pages, taking those as unrestricted public data.
+        def purgeable_queryset(self, model_class: Type[models.Model]) -> models.QuerySet[models.Model]:
+            assert model_class == PageVersion
+            qs = super().purgeable_queryset(model_class)
+            qs = qs.exclude(page__can_read="ALL").order_by('-created_at')
+            return qs
+
+    purge_policy = VersionPurgePolicy(age_field='page__offering__semester__end', after_days=365*8)
 
     defaults = {
         'math': False, 'depth': 0, 'redirect_reason': None, 'markup': 'creole',
@@ -472,6 +494,8 @@ class PagePermission(models.Model):
     role = models.CharField(max_length=4, choices=PERMISSION_ACL_CHOICES, default="STUD",
         help_text="What level of access should this person have for the course?")
     config = JSONField(null=False, blank=False, default=dict) # addition configuration stuff:
+
+    purge_policy = AgePurgePolicy(age_field='offering__semester__end', after_days=365*5)
 
     defaults = {}
 

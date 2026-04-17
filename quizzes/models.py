@@ -28,6 +28,7 @@ from coredata.models import Member, CourseOffering
 from courselib.conditional_save import ConditionalSaveMixin
 from courselib.json_fields import JSONField, config_property
 from courselib.markup import markup_to_html
+from courselib.purge import AgePurgePolicy
 from courselib.storage import UploadedFileStorage, upload_path
 from grades.models import Activity, NumericActivity, NumericGrade
 from marking.models import ActivityComponent, ActivityComponentMark, StudentActivityMark
@@ -188,6 +189,8 @@ class Quiz(models.Model):
         self.config['review'] = val
 
     review = property(_review_get, _review_set)
+
+    purge_policy = AgePurgePolicy(age_field='activity__offering__semester__end', after_days=365*8)
 
     # .config fields allowed in the JSON import
     ALLOWED_IMPORT_CONFIG = {'grace', 'honour_code', 'photos', 'reviewable', 'review'}
@@ -470,6 +473,8 @@ class Question(models.Model, ConditionalSaveMixin):
 
     points = config_property('points', default=1)
 
+    purge_policy = AgePurgePolicy(age_field='quiz__activity__offering__semester__end', after_days=365*8)
+
     class Meta:
         ordering = ['order']
 
@@ -527,6 +532,8 @@ class QuestionVersion(models.Model):
 
     objects = VersionStatusManager()
     all_objects = models.Manager()
+
+    purge_policy = AgePurgePolicy(age_field='question__quiz__activity__offering__semester__end', after_days=365*8)
 
     class Meta:
         ordering = ['question', 'created_at', 'id']
@@ -674,6 +681,8 @@ class QuestionAnswer(models.Model):
     # .file used for file upload question types; null otherwise
     file = models.FileField(blank=True, null=True, storage=UploadedFileStorage, upload_to=file_upload_to,
                             max_length=500)
+    
+    purge_policy = AgePurgePolicy(age_field='question__quiz__activity__offering__semester__end', after_days=365*8)
 
     class Meta:
         unique_together = [['question_version', 'student']]
@@ -740,6 +749,8 @@ class QuizSubmission(models.Model):
     # .config['fingerprint']: browser fingerprint provided by fingerprintjs
     # .config['honour_code']: did student agree to the honour code?
     # .config['autosave']: was this an auto-save?
+
+    purge_policy = AgePurgePolicy(age_field='quiz__activity__offering__semester__end', after_days=365*8)
 
     @classmethod
     def create(cls, request: HttpRequest, quiz: Quiz, student: Member, answers: List[QuestionAnswer],
@@ -855,6 +866,8 @@ class TimeSpecialCase(models.Model):
     end = models.DateTimeField(
         help_text='Quiz will be invisible to the student and unsubmittable after this time. Time format: HH:MM:SS, 24-hour time')
     config = JSONField(null=False, blank=False, default=dict)  # addition configuration stuff:
+
+    purge_policy = AgePurgePolicy(age_field='quiz__activity__offering__semester__end', after_days=365*8)
 
     class Meta:
         unique_together = [['quiz', 'student']]
