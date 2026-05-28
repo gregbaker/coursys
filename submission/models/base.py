@@ -5,6 +5,7 @@ from django.db import models
 from django.core.validators import MaxValueValidator
 from django.db.models.fields.files import FieldFile
 from django.dispatch import receiver
+from courselib.purge import AgePurgePolicy, ThisIsPublicData
 from grades.models import Activity
 from coredata.models import Member, Person,CourseOffering
 from groups.models import Group,GroupMember
@@ -43,6 +44,8 @@ class SubmissionComponent(models.Model):
     deleted = models.BooleanField(default=False, help_text="Component is invisible to students and can't be submitted if checked.")
     specified_filename = models.CharField(max_length=200, help_text="Specify a file name for this component.")
 
+    purge_policy = ThisIsPublicData()
+
     error_messages = {}
 
     def __lt__(self, other):
@@ -68,8 +71,6 @@ class SubmissionComponent(models.Model):
         super(SubmissionComponent, self).save(**kwargs)
 
 
-
-
 # per-submission models, created when a student/group submits an assignment:
 
 class Submission(models.Model):
@@ -80,6 +81,9 @@ class Submission(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     owner = models.ForeignKey(Member, null=True, help_text = "TA or instructor that will mark this submission", on_delete=models.PROTECT)
     status = models.CharField(max_length=3, null=False,choices=STATUS_CHOICES, default = "NEW")
+
+    purge_policy = AgePurgePolicy(age_field='activity__offering__semester__end', after_days=365*8)
+
     def __lt__(self, other):
         return other.created_at < self.created_at
     class Meta:
@@ -159,6 +163,9 @@ class SubmittedComponent(models.Model):
     """
     submission = models.ForeignKey(Submission, on_delete=models.PROTECT)
     submit_time = models.DateTimeField(auto_now_add = True)
+
+    purge_policy = AgePurgePolicy(age_field='submission__activity__offering__semester__end', after_days=365*8)
+
     def get_time(self):
         "return the submit time of the component"
         return self.submit_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -268,15 +275,8 @@ class SimilarityResult(models.Model):
 
     class Meta:
         unique_together = [('activity', 'generator')]
-
-    @classmethod
-    def cleanup_old(cls, age=timedelta(days=30)):
-        '''
-        Old SimilarityResults will be deleted, but instructor can regenerate if they wish.
-        '''
-        cutoff = datetime.now() - age
-        old = cls.objects.filter(created_at__lt=cutoff)
-        old.delete()
+    
+    purge_policy = AgePurgePolicy(age_field='created_at', after_days=30)
 
 
 def similarity_upload_path(instance, filename):
@@ -299,23 +299,5 @@ class SimilarityData(models.Model):
 
     class Meta:
         unique_together = [('result', 'label')]
-
-
-# based on https://stackoverflow.com/a/16041527/6871666
-@receiver(models.signals.post_delete, sender=SimilarityData)
-def auto_delete_file_on_delete(sender, instance, **kwargs):
-    """
-    Deletes file from filesystem when corresponding SimilarityData object is deleted.
-    """
-    if instance.file:
-        path = instance.file.path
-        if os.path.isfile(path):
-            os.remove(path)
-
-        # also containing directory, if empty
-        directory = os.path.split(path)[0]
-        if os.path.isdir(directory):
-            try:
-                os.rmdir(directory)
-            except OSError:
-                pass
+    
+    purge_policy = AgePurgePolicy(age_field='result__created_at', after_days=30)

@@ -310,9 +310,6 @@ def daily_cleanup():
     LogEntry.objects.filter(datetime__lt=datetime.datetime.now()-datetime.timedelta(days=365)).delete()
     # cleanup old official grades
     Member.clear_old_official_grades()
-    # cleanup old similarity reports
-    from submission.models.base import SimilarityResult
-    SimilarityResult.cleanup_old()
     # deduplicate EnrolmentHistory
     EnrolmentHistory.deduplicate(start_date=datetime.date.today() - datetime.timedelta(days=30))
     # purge old EventLogs

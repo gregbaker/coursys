@@ -4,6 +4,7 @@ A module written for inventory control of any type of asset we may want.
 
 import os
 from coredata.models import Unit, Person
+from courselib.purge import AnyHiddenPurgePolicy
 from outreach.models import OutreachEvent
 from autoslug import AutoSlugField
 from django.db import models
@@ -95,6 +96,8 @@ class Asset(models.Model):
 
     objects = AssetQuerySet.as_manager()
 
+    purge_policy = AnyHiddenPurgePolicy(hidden_fields=['hidden'])
+
     def autoslug(self):
         return make_slug(self.unit.slug + '-' + self.name)
 
@@ -177,6 +180,8 @@ class AssetChangeRecord(models.Model):
 
     objects = AssetChangeRecordQuerySet.as_manager()
 
+    purge_policy = AnyHiddenPurgePolicy(hidden_fields=['hidden', 'asset__hidden'])
+
     def save(self, user, *args, **kwargs):
         self.last_modified = timezone.now()
         self.saved_by_userid = user
@@ -213,6 +218,8 @@ class AssetDocumentAttachment(models.Model):
     hidden = models.BooleanField(default=False, editable=False)
 
     objects = AssetDocumentAttachmentQueryset.as_manager()
+
+    purge_policy = AnyHiddenPurgePolicy(hidden_fields=['hidden', 'asset__hidden'])
 
     def __str__(self):
         return self.contents.name

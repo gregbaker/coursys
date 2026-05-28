@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import os
 import datetime
 import uuid
@@ -10,6 +11,7 @@ from django.urls import reverse
 from coredata.models import VISA_STATUSES as REAL_VISA_STATUSES, Person, Unit
 from django.utils import timezone
 from courselib.json_fields import JSONField
+from courselib.purge import PurgePolicy
 from courselib.storage import UploadedFileStorage, upload_path
 from coredata.models import Semester
 
@@ -39,6 +41,18 @@ class VisaQuerySet(models.QuerySet):
         return self.filter(hidden=False, person=person)
 
 
+@dataclass
+class VisaPurgePolicy(PurgePolicy):
+    prefix: str
+    
+    def purgeable_queryset(self, model_class):
+        # ended 2 years ago OR no end date and started 10 years ago
+        now = timezone.now()
+        end_filter = {f'{self.prefix}end_date__isnull': False, f'{self.prefix}end_date__lt': now - datetime.timedelta(days=365*2)}
+        start_filter = {f'{self.prefix}end_date__isnull': True, f'{self.prefix}start_date__lt': now - datetime.timedelta(days=365*10)}
+        return model_class.objects.filter(**end_filter) | model_class.objects.filter(**start_filter)
+
+
 class Visa (models.Model):
     person = models.ForeignKey(Person, null=False, blank=False, on_delete=models.PROTECT)
     unit = models.ForeignKey(Unit, null=False, blank=False, on_delete=models.PROTECT)
@@ -53,6 +67,7 @@ class Visa (models.Model):
     class Meta:
         ordering = ('start_date',)
 
+    purge_policy = VisaPurgePolicy(prefix='')
 
     def is_current(self):
         return self.start_date <= timezone_today() and \
@@ -147,6 +162,8 @@ class VisaDocumentAttachment(models.Model):
     hidden = models.BooleanField(default=False, editable=False)
 
     objects = VisaDocumentAttachmentQueryset.as_manager()
+
+    purge_policy = VisaPurgePolicy(prefix='visa__')
 
     def __str__(self):
         return self.contents.name

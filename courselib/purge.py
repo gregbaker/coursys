@@ -1,6 +1,6 @@
 import datetime
 from dataclasses import dataclass
-from typing import Iterable, Type, TypeVar
+from typing import Iterable, List, Type, TypeVar
 from django.apps import apps
 from django.db import models, transaction
 from django.utils import timezone
@@ -114,6 +114,20 @@ class ThisIsPublicData(PurgePolicy):
     """
     def purgeable_queryset(self, model_class: Type[models.Model]) -> models.QuerySet[models.Model]:
         return model_class.objects.none()
+
+@dataclass
+class AnyHiddenPurgePolicy(PurgePolicy):
+    """
+    Policy that will purge items if they (or foreign-key-related objects) have .hidden==True
+    """
+    hidden_fields: List[str]
+    
+    def purgeable_queryset(self, model_class):
+        # do *any* of the listed .hidden fields have a True?
+        qs = model_class.objects.none()
+        for f in self.hidden_fields:
+            qs = qs | model_class.objects.filter(**{f: True})
+        return qs
 
 
 class PurgeIfNoForeignKeyReferences(PurgePolicy):

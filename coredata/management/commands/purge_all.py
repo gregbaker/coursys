@@ -8,5 +8,3 @@ class Command(BaseCommand):
     
     def handle(self, *args, **options):
         purge_all(verbosity=options['verbosity'], commit=options['actually_delete'])
-        
-

@@ -6,6 +6,7 @@ from django.conf import settings
 from django.db.models import Q
 from coredata.models import Unit, JSONField, config_property
 from autoslug import AutoSlugField
+from courselib.purge import AnyHiddenPurgePolicy
 from courselib.slugs import make_slug
 from coredata.models import CAMPUS_CHOICES, CAMPUSES_SHORT, Person
 from courselib.storage import UploadedFileStorage, upload_path
@@ -81,6 +82,8 @@ class RoomType(models.Model):
 
     objects = RoomTypeManager.as_manager()
 
+    purge_policy = AnyHiddenPurgePolicy(hidden_fields=['hidden'])
+
     def autoslug(self):
         return make_slug(self.unit.slug + '-' + self.code + '-' + str(self.COU_code_value))
 
@@ -122,6 +125,8 @@ class RoomSafetyItem(models.Model):
 
     objects = RoomSafetyItemQuerySet.as_manager()
 
+    purge_policy = AnyHiddenPurgePolicy(hidden_fields=['hidden'])
+
     def delete(self):
         # As usual, only hide stuff, don't delete it.
         self.hidden = True
@@ -159,6 +164,8 @@ class Location(models.Model):
     config = JSONField(null=False, blank=False, editable=False, default=dict)
 
     objects = LocationManager.as_manager()
+
+    purge_policy = AnyHiddenPurgePolicy(hidden_fields=['hidden', 'room_type__hidden'])
 
     def autoslug(self):
         return make_slug(self.unit.slug + '-' + self.campus + '-' + self.building + '-' + str(self.floor) + '-' +
@@ -248,6 +255,8 @@ class BookingRecord(models.Model):
 
     slug = AutoSlugField(populate_from='autoslug', null=False, editable=False, unique=True)
 
+    purge_policy = AnyHiddenPurgePolicy(hidden_fields=['hidden', 'location__hidden'])
+
     def __str__(self):
         return "%s - %s" % (self.person.name(), self.start_time)
 
@@ -302,6 +311,7 @@ class BookingRecordAttachment(models.Model):
     hidden = models.BooleanField(default=False, editable=False)
 
     objects = BookingRecordAttachmentQueryset.as_manager()
+    purge_policy = AnyHiddenPurgePolicy(hidden_fields=['hidden', 'booking_record__hidden', 'booking_record__location__hidden'])
 
     def __str__(self):
         return self.contents.name
@@ -323,6 +333,8 @@ class BookingMemo(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(Person, on_delete=models.PROTECT)
 
+    purge_policy = AnyHiddenPurgePolicy(hidden_fields=['booking_record__hidden', 'booking_record__location__hidden'])
+
     def email_memo(self):
         """
         Emails the person to whom the booking is assigned.
@@ -341,4 +353,6 @@ class KeyRequest(models.Model):
     booking_record = models.OneToOneField(BookingRecord, related_name='key_request', on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(Person, on_delete=models.PROTECT)
+
+    purge_policy = AnyHiddenPurgePolicy(hidden_fields=['booking_record__hidden', 'booking_record__location__hidden'])
 
