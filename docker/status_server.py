@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# docker compose -f compose-demo.yml run celery-batch curl host.docker.internal:8888/stats/json
+
+
 import subprocess
 from typing import Union
 
