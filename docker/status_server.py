@@ -2,7 +2,7 @@
 
 # Starting manually:
 # pip install flask
-# python -m flask --app docker.status_server run -h 0.0.0.0 -p 8888
+# python -m flask --app docker.status_server run -h 0.0.0.0 -p 8888 --reload
 
 import subprocess
 from typing import Union

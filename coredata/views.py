@@ -3,7 +3,6 @@ import itertools
 from django.http import HttpResponse, HttpResponseRedirect, Http404
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.cache import cache_page
 from coredata.csrpt import initial_csrpt_auth
 from coredata.forms import CSRPTAuthForm, RoleForm, UnitRoleForm, InstrRoleFormSet, MemberForm, PersonForm, TAForm, \
         UnitAddressForm, UnitForm, SemesterForm, SemesterWeekFormset, HolidayFormset, SysAdminSearchForm, \
@@ -24,7 +23,7 @@ from django.db import transaction
 from django.contrib import messages
 from cache_utils.decorators import cached
 from haystack.query import SearchQuerySet
-import socket, json, datetime, os
+import json, datetime, os
 from functools import reduce
 from operator import itemgetter
 import csv
@@ -342,7 +341,6 @@ def combined_offerings(request):
 
 def _new_fake_class_nbr(semester):
     # largest class_nbr in production is 47348. Assuming that >65536 can be reserved as fakes.
-    from django.db.models import Max
     max_offering = CourseOffering.objects.filter(semester=semester).aggregate(Max('class_nbr'))['class_nbr__max']
     max_combined = CombinedOffering.objects.filter(semester=semester).aggregate(Max('class_nbr'))['class_nbr__max']
 
@@ -437,7 +435,6 @@ def add_combined_offering(request, pk):
     return render(request, 'coredata/add_combined_offering.html', context)
 
 
-
 @requires_global_role("SYSA")
 def admin_panel(request):
     if 'content' in request.GET:
@@ -468,6 +465,10 @@ def admin_panel(request):
             environ = [(k,v) for k,v in os.environ.items() if 'PASS' not in k]
             environ.sort()
             return render(request, 'coredata/admin_panel_tab.html', {'environ': environ})
+        elif request.GET['content'] == 'docker-ps':
+            return render(request, 'coredata/admin_panel_tab.html', {'the_request': panel.get_status_server('ps')})
+        elif request.GET['content'] == 'docker-stats':
+            return render(request, 'coredata/admin_panel_tab.html', {'the_request': panel.get_status_server('stats')})
         elif request.GET['content'] == 'throw':
             raise RuntimeError(
                 'This is a deliberately-thrown exception to test exception-handling in the system. It can be ignored.')

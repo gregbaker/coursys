@@ -527,6 +527,14 @@ def csrpt_info():
         return [('SIMS problem', str(e))]
 
 
+def get_status_server(page: str) -> str:
+    try:
+        req = urllib.request.urlopen(f'http://host.docker.internal:8888/{page}', timeout=15)
+        return req.read().decode('utf-8')
+    except Exception as e:
+        return str(e)
+
+
 def health_check() -> Dict[str, Any]:
     """
     A minimal sanity check that can be used for a docker healthcheck (and dashboard.views.health_check).

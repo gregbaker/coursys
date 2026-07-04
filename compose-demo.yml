@@ -123,8 +123,6 @@ services:
     environment:
       - QUEUE=batch
       - CONCURRENCY=2
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
   celery-email:
     extends: celery-fast
     environment:
