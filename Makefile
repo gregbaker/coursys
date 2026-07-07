@@ -10,28 +10,30 @@ start-all:
 pull:
 	${GIT} pull
 
-pull-rebuild:
+pull-build:
 	${GIT} pull
 	${DOCKERCOMPOSE} pull
-	${DOCKERCOMPOSE} build --pull
+	${DOCKERCOMPOSE} build --pull --no-cache
 
-rebuild:
+build:
 	${DOCKERCOMPOSE} build
 
-redeploy:
+deploy:
+	${DOCKERCOMPOSE} up -d --wait elasticsearch rabbitmq memcached  # get these (re)started first since other containers depend on them
 	${DOCKERCOMPOSE} run manage collectstatic --no-input
-	${DOCKERROLLOUT} --timeout 120 --wait-after-healthy 5 app  # zero-downtime rollout of app service
-	${DOCKERCOMPOSE} up -d --remove-orphans                    # restart celery and anything else changed
+	${DOCKERROLLOUT} --timeout 60 --wait-after-healthy 5 app        # zero-downtime rollout of app service
+	${DOCKERCOMPOSE} up -d --remove-orphans                         # restart celery and anything else changed
 
-redeploy-no-rollout:  # skips the "docker rollout" in favour of a faster "up -d" with a few seconds of downtime
+deploy-no-rollout:  # skips the "docker rollout" in favour of a faster "up -d" with a few seconds of downtime
+	${DOCKERCOMPOSE} up -d --wait elasticsearch rabbitmq memcached  # get these (re)started first since other containers depend on them
 	${DOCKERCOMPOSE} run manage collectstatic --no-input
 	${DOCKERCOMPOSE} up -d --remove-orphans
 
-new-code: rebuild redeploy
+new-code: build deploy
 
-new-code-pull: pull-rebuild redeploy
+new-code-pull: pull-build deploy
 
-new-code-no-rollout: rebuild redeploy-no-rollout
+new-code-no-rollout: build deploy-no-rollout
 
 migrate-safe:
 	${DOCKERCOMPOSE} run manage backup_db_task
@@ -55,7 +57,7 @@ drain-tasks:  # make absolutely sure there are no pending tasks (i.e. that rabbi
 
 503:  # ensure that the system is down in such a way that no database/file changes are happening
 	${DOCKERCOMPOSE} run admin touch /dynamic_config/503
-	${DOCKERCOMPOSE} stop `${DOCKERCOMPOSE} config --services | grep -e '^celery'`
+	${DOCKERCOMPOSE} stop `${DOCKERCOMPOSE} config --services | grep -e '^celery'` beat
 
 rm503:
 	${DOCKERCOMPOSE} run admin rm /dynamic_config/503

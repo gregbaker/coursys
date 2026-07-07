@@ -48,13 +48,16 @@ ENV LANG=en_CA.UTF-8
 ENV IN_DOCKER=yes
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+# Host header for healthcheck requests:
+ARG HEALTHCHECK_HOSTNAME=coursys.sfu.ca
+ENV HEALTHCHECK_HOSTNAME=${HEALTHCHECK_HOSTNAME}
 
 RUN mkdir -p /coursys
 WORKDIR /coursys
 
 ARG UID=888
 RUN useradd -l -s /bin/bash --uid ${UID} -d /home/coursys coursys \
-  && install -o ${UID} -d /static /csrpt_auth /db_backups /submitted_files /dynamic_config /celery_logs
+  && install -o ${UID} -d /static /csrpt_auth /db_backups /submitted_files /dynamic_config /celery_logs /status
 
 COPY --exclude=.git --exclude=node_modules --exclude=secrets --exclude=docker --exclude=*.yml --exclude=instructions \
   --exclude=submitted_files --exclude=whoosh_index --exclude=deploy --exclude=rhel \
@@ -78,7 +81,7 @@ FROM base AS app
 
 COPY docker/files/gunicorn-worker.sh /gunicorn-worker.sh
 COPY docker/files/gunicorn-healthcheck.sh /gunicorn-healthcheck.sh
-HEALTHCHECK --interval=60s --timeout=5s --start-period=5s --start-interval=5s \
+HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --start-interval=5s \
   CMD /gunicorn-healthcheck.sh || exit 1
 CMD ["/gunicorn-worker.sh"]
 
@@ -89,7 +92,7 @@ CMD ["/gunicorn-worker.sh"]
 FROM base AS celery
 
 COPY docker/files/celery-worker.sh /celery-worker.sh
-HEALTHCHECK --interval=60s --timeout=5s --start-period=10s --start-interval=5s \
+HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --start-interval=5s \
   CMD curl --fail http://localhost:9000/ || exit 1
 ARG QUEUE
 ARG CONCURRENCY
@@ -102,7 +105,7 @@ CMD ["/celery-worker.sh"]
 # celery beat image
 
 FROM base AS beat
-CMD ["celery", "-A", "courses", "beat", "--loglevel", "INFO", "--logfile", "/celery_logs/beat.log"]
+CMD ["celery", "-A", "courses", "beat", "--loglevel", "INFO", "--logfile", "/celery_logs/beat.log", "-s", "/status/celerybeat-schedule"]
 
 
 
