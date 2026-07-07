@@ -17,12 +17,14 @@ services:
     volumes:
       - rabbitmq4:/var/lib/rabbitmq:rw
 
-  elasticsearch:
+  opensearch:
     extends:
       file: compose-base.yml
-      service: elasticsearch
+      service: opensearch
     volumes:
-      - elasticsearch7:/usr/share/elasticsearch/data:rw
+      - opensearch2:/usr/share/opensearch/data:rw
+    secrets:
+      - elastic-initial-password
 
   memcached:
     extends:
@@ -170,7 +172,7 @@ volumes:
   static:
   status:
   rabbitmq4:
-  elasticsearch7:
+  opensearch2:
   nginx_logs:
   celery_logs:
   dynamic_config:
@@ -187,4 +189,5 @@ networks:
 secrets:
   app-config:
     file: ./secrets/app-config.toml
-
+  elastic-initial-password:
+    file: ./secrets/elastic-initial-password

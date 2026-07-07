@@ -2,11 +2,11 @@
 
 set -e
 
-# This is a shim to set the ELASTIC_PASSWORD environment variable if necessary from a 
-# secret file, ELASTIC_PASSWORD_SECRET
-if [ ! -z ${ELASTIC_PASSWORD_SECRET+x} -a -f ${ELASTIC_PASSWORD_SECRET} ] ; then \
-    echo "setting ELASTIC_PASSWORD"; \
-    export ELASTIC_PASSWORD=$(cat ${ELASTIC_PASSWORD_SECRET}); \
+# This is a shim to set the OPENSEARCH_INITIAL_ADMIN_PASSWORD environment variable if necessary from a 
+# secret file, OPENSEARCH_INITIAL_ADMIN_PASSWORD_SECRET
+if [ ! -z ${OPENSEARCH_INITIAL_ADMIN_PASSWORD_SECRET+x} -a -f ${OPENSEARCH_INITIAL_ADMIN_PASSWORD_SECRET} ] ; then \
+    echo "setting OPENSEARCH_INITIAL_ADMIN_PASSWORD"; \
+    export OPENSEARCH_INITIAL_ADMIN_PASSWORD=$(cat ${OPENSEARCH_INITIAL_ADMIN_PASSWORD_SECRET}); \
 fi
 
-exec /usr/local/bin/docker-entrypoint.sh
+exec ./opensearch-docker-entrypoint.sh

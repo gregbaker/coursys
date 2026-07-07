@@ -221,12 +221,12 @@ if DEPLOY_MODE in ['production', 'proddev']:
     } }
     if getattr(localsettings, 'MEMCACHED_LOCATION', None):
         CACHES['default']['LOCATION'] = localsettings.MEMCACHED_LOCATION
-    ELASTICSEARCH_HOST = getattr(localsettings, 'ELASTICSEARCH_HOST', 'elasticsearch')
-    ELASTICSEARCH_PASSWORD = getattr(localsettings, 'ELASTICSEARCH_PASSWORD', 'espass')
+    ELASTICSEARCH_HOST = getattr(localsettings, 'ELASTICSEARCH_HOST', 'opensearch')
+    ELASTICSEARCH_PASSWORD = getattr(localsettings, 'ELASTICSEARCH_PASSWORD', 'AbCd56&()')
     HAYSTACK_CONNECTIONS = {
         'default': {
-            'ENGINE': 'haystack.backends.elasticsearch7_backend.Elasticsearch7SearchEngine',
-            'URL': f'http://elastic:{ELASTICSEARCH_PASSWORD}@{ELASTICSEARCH_HOST}:9200/',
+            'ENGINE': 'haystack.backends.opensearch_backend.OpenSearchSearchEngine',
+            'URL': f'http://{ELASTICSEARCH_HOST}:9200/',
             'INDEX_NAME': 'haystack',
             'TIMEOUT': 60,
         },

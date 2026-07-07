@@ -5,3 +5,4 @@
 * some monitoring of docker containers/usage/etc?
 * finalize sudo config in prod
 * what if we rebooted automatically at 4:30 on Sundays or something?
+* is moss running correctly? What's up?

@@ -33,7 +33,8 @@ kombu  # let celery choose the version
 django-celery-email==3.0.0
 django_celery_beat==2.8.1
 celery-healthcheck==0.2.0
-django-haystack==3.3.0
+#django-haystack==3.3.0
+git+https://github.com/gregbaker/django-haystack@a982fb8
 whoosh==2.7.4
 cmarkgfm==2024.11.20
 django-ipware==7.0.1
@@ -49,7 +50,7 @@ django-debug-toolbar
 pymemcache==4.0.0
 #django-dbdump==1.1  # TODO: could probably replace with basic CLI call
 git+https://github.com/jfscyberpub/django-dbdump.git@6c84bae7f35258c2159cc94e9dbe4b7c6bfd3015 # django 1.10 compatibility
-elasticsearch>=7.0.0,<8.0.0
+opensearch-py==3.2.0
 gunicorn==23.0.0
 mysqlclient==2.2.7
 pyodbc==5.2.0

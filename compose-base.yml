@@ -19,19 +19,19 @@ services:
       - backend
       - web
 
-  elasticsearch:
+  opensearch:
     build:
       context: .
-      dockerfile: docker/elasticsearch.Dockerfile
+      dockerfile: docker/opensearch.Dockerfile
     deploy:
       resources:
         limits:
           memory: 4gb
     volumes:
-      - /data/elasticsearch7:/usr/share/elasticsearch/data:rw,z
-    environment:
-      - ELASTIC_PASSWORD=espass # the secret wins if both are present
-      - ELASTIC_PASSWORD_SECRET=/run/secrets/elastic-initial-password
+      - /data/opensearch2:/usr/share/opensearch/data:rw,z
+    # environment:
+    #   - OPENSEARCH_INITIAL_ADMIN_PASSWORD=AbCd56&()  # the secret wins if both are present
+    #   - OPENSEARCH_INITIAL_ADMIN_PASSWORD_SECRET=/run/secrets/elastic-initial-password
     restart: unless-stopped
     networks:
       - backend
@@ -99,7 +99,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      elasticsearch:
+      opensearch:
         condition: service_healthy
       memcached:
         condition: service_healthy
