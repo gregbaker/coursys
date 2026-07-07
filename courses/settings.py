@@ -114,7 +114,6 @@ MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
 LANGUAGE_CODE = 'en'
 TIME_ZONE = 'America/Vancouver'
 USE_I18N = False
-USE_L10N = False
 USE_TZ = False
 FIXTURE_DIRS = [os.path.join(BASE_DIR, 'fixtures')]
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'

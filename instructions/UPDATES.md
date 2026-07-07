@@ -29,6 +29,13 @@ docker compose build
 docker compose run manage test
 ```
 
+And you can bring the system up to look at things running at http://localhost:8080
+```shell
+docker compose up -d
+docker compose run manage check_things
+```
+
+
 ### Django
 
 Of course, Django is the most critical dependency, and often itself a sub-dependency of other packages we use. Likely
