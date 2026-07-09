@@ -157,6 +157,13 @@ if DEPLOY_MODE in ['production', 'proddev']:
                 "init_command": "SET default_storage_engine=INNODB, character_set_client=utf8mb4, character_set_connection=utf8mb4, character_set_results=utf8mb4, collation_connection=utf8mb4_unicode_ci, collation_server=utf8mb4_unicode_ci;",
                 'charset': 'utf8mb4',
             }
+        },
+        'fts': {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "coursys",
+            "USER": "coursys",
+            "PASSWORD": "pgpass",
+            "HOST": "postgres",
         }
     }
 
@@ -224,7 +231,7 @@ if DEPLOY_MODE in ['production', 'proddev']:
     ELASTICSEARCH_PASSWORD = getattr(localsettings, 'ELASTICSEARCH_PASSWORD', 'espass')
     HAYSTACK_CONNECTIONS = {
         'default': {
-            'ENGINE': 'haystack.backends.elasticsearch7_backend.Elasticsearch7SearchEngine',
+            'ENGINE': 'postgres_fts_backend.PostgresFTSEngine',
             'URL': f'http://{ELASTICSEARCH_HOST}:9200/',
             'KWARGS': {'http_auth': ("elastic", ELASTICSEARCH_PASSWORD)},
             'INDEX_NAME': 'haystack',
@@ -233,7 +240,9 @@ if DEPLOY_MODE in ['production', 'proddev']:
     }
     if IN_TESTING:
         HAYSTACK_CONNECTIONS['default']['INDEX_NAME'] = 'haystack-testing'
+
     DB_BACKUP_DIR = getattr(localsettings, 'DB_BACKUP_DIR', '/db_backups')
+
 
 else:
     CACHES = { 'default': {
@@ -246,6 +255,13 @@ else:
         },
     }
     DB_BACKUP_DIR = getattr(localsettings, 'DB_BACKUP_DIR', os.path.join(BASE_DIR, 'db_backup'))
+
+INSTALLED_APPS = INSTALLED_APPS + ('postgres_fts_backend',)
+MIGRATION_MODULES = {
+    "postgres_fts_backend": "coredata.search_migrations",
+}
+
+DATABASE_ROUTERS = ['courselib.db_router.DatabaseRouter']
 
 HAYSTACK_SIGNAL_PROCESSOR = getattr(localsettings, 'HAYSTACK_SIGNAL_PROCESSOR', 'haystack.signals.BaseSignalProcessor')
 HAYSTACK_CONNECTIONS = getattr(localsettings, 'HAYSTACK_CONNECTIONS', HAYSTACK_CONNECTIONS)

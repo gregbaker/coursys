@@ -7,7 +7,7 @@ FROM python:${PYTHON_MINOR_VERSION}-slim AS builder
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     git locales-all npm libfreetype-dev \
-    pkg-config default-libmysqlclient-dev build-essential \
+    pkg-config default-libmysqlclient-dev libpq-dev build-essential \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
@@ -31,7 +31,7 @@ FROM python:${PYTHON_MINOR_VERSION}-slim AS base
 # packages groups here: basics; csrpt connection; admin helpers
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    locales-all default-mysql-client \
+    locales-all default-mysql-client libpq5 postgresql-client \
     unixodbc-dev krb5-user tdsodbc \
     curl wget freetds-bin \
   && apt-get clean \

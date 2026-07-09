@@ -17,12 +17,12 @@ services:
     volumes:
       - rabbitmq4:/var/lib/rabbitmq:rw
 
-  elasticsearch:
+  postgres:
     extends:
       file: compose-base.yml
-      service: elasticsearch
+      service: postgres
     volumes:
-      - elasticsearch7:/usr/share/elasticsearch/data:rw
+      - postgres18:/var/lib/postgresql/18/docker:rw
 
   memcached:
     extends:
@@ -171,7 +171,7 @@ volumes:
   static:
   status:
   rabbitmq4:
-  elasticsearch7:
+  postgres18:
   nginx_logs:
   celery_logs:
   dynamic_config:
