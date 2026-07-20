@@ -28,28 +28,18 @@ services:
       - rabbitmq-default-password
     
 
-  elasticsearch:
-    build:
-      context: .
-      dockerfile: docker/elasticsearch.Dockerfile
-    deploy:
-      resources:
-        limits:
-          memory: 4gb
-    volumes:
-      - /data/elasticsearch7:/usr/share/elasticsearch/data:rw,Z
-    environment:
-      - ELASTIC_PASSWORD=espass # the secret wins if both are present
-      - ELASTIC_PASSWORD_SECRET=/run/secrets/elastic-initial-password
-    restart: unless-stopped
-    networks:
-      - backend
-      - web
-    
-    secrets:
-      - elastic-initial-password
-    
-
+  postgres:  # postgres for full-text-search using Haystack postgres-fts-backend
+    image: postgres:18
+     deploy:
+       resources:
+         limits:
+          memory: 2gb
+     volumes:
+      - /data/postgres18:/var/lib/postgresql/18/docker:rw,z
+     environment:
+      - POSTGRES_USER=coursys
+      - POSTGRES_PASSWORD=pgpass
+      #- POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password
   memcached:
     image: 'memcached:1-alpine'
     restart: unless-stopped
