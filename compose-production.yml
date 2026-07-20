@@ -30,16 +30,22 @@ services:
 
   postgres:  # postgres for full-text-search using Haystack postgres-fts-backend
     image: postgres:18
-     deploy:
-       resources:
-         limits:
-          memory: 2gb
-     volumes:
+    deploy:
+      resources:
+        limits:
+         memory: 2gb
+    volumes:
       - /data/postgres18:/var/lib/postgresql/18/docker:rw,z
-     environment:
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      timeout: 5s
+      interval: 60s
+      start_period: 15s
+    environment:
       - POSTGRES_USER=coursys
       - POSTGRES_PASSWORD=pgpass
       #- POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password
+
   memcached:
     image: 'memcached:1-alpine'
     restart: unless-stopped
@@ -108,7 +114,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      elasticsearch:
+      postgres:
         condition: service_healthy
       memcached:
         condition: service_healthy

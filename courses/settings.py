@@ -255,10 +255,10 @@ else:
     }
     DB_BACKUP_DIR = getattr(localsettings, 'DB_BACKUP_DIR', os.path.join(BASE_DIR, 'db_backup'))
 
-INSTALLED_APPS = INSTALLED_APPS + ('postgres_fts_backend',)
-MIGRATION_MODULES = {
-    "postgres_fts_backend": "coredata.search_migrations",
-}
+# INSTALLED_APPS = INSTALLED_APPS + ('postgres_fts_backend',)
+# MIGRATION_MODULES = {
+#     "postgres_fts_backend": "coredata.search_migrations",
+# }
 
 DATABASE_ROUTERS = ['courselib.db_router.DatabaseRouter']
 
