@@ -31,14 +31,8 @@ class CSPMiddleware(object):
         token = new_token()
         request.csp_nonce = token
         response = self.get_response(request)
-        return response
 
-        if settings.DEBUG:
-            header = 'Content-Security-Policy'
-        else:
-            header = 'Content-Security-Policy-Report-Only'
-            return response # short-circuit for now
-
+        header = 'Content-Security-Policy' if settings.DEBUG else 'Content-Security-Policy-Report-Only'
         if header in response:
             # if the view set the Content-Security-Policy, honour it
             return response
@@ -58,13 +52,12 @@ class CSPMiddleware(object):
         if hasattr(response, 'allow_frames_csp') and response.allow_frames_csp:
             extra_csp += " frame-src 'self'"
 
-        value = "default-src 'self' * ; " \
-                "style-src 'self' 'unsafe-inline' %s ; " \
-                "img-src 'self' www.sfu.ca data: ; " \
-                "font-src 'self' www.sfu.ca ; " \
-                "script-src 'self' https://cdnjs.cloudflare.com %s ;%s" \
-                % (extra_style_src, extra_script_src, extra_csp)
-        value += " report-uri /csp-reports ;"
+        value = f"default-src 'self' * ; " \
+                f"style-src 'self' 'unsafe-inline' {extra_style_src} ; " \
+                f"img-src 'self' www.sfu.ca data: ; " \
+                f"font-src 'self' www.sfu.ca ; " \
+                f"script-src 'self' https://cdnjs.cloudflare.com {extra_script_src} ;{extra_csp}" \
+                f" report-uri /csp-reports ;"
 
         response[header] = value
         return response
@@ -73,15 +66,19 @@ class CSPMiddleware(object):
 @csrf_exempt
 def csp_report_view(request):
     global generic_related
-    report_json = request.body.decode('utf8')
-    report = json.loads(report_json)
     resp = HttpResponse()
-
-    if ('script-sample' in report['csp-report']
-            and 'var t=0,e=function(t,e){ret' in report['csp-report']['script-sample']) or \
-            ('script-sample' in report['csp-report'] and report['csp-report']['script-sample'] == ';undefined'):
-        # firefox browser plugin injection?
+    try:
+        report_json = request.body.decode('utf8')
+        report = json.loads(report_json)
+    except:
+        # any problems with report: ignore
         return resp
+
+    # if ('script-sample' in report['csp-report']
+    #         and 'var t=0,e=function(t,e){ret' in report['csp-report']['script-sample']) or \
+    #         ('script-sample' in report['csp-report'] and report['csp-report']['script-sample'] == ';undefined'):
+    #     # firefox browser plugin injection?
+    #     return resp
 
     if generic_related is None:
         generic_related = Unit.objects.get(slug='univ')
