@@ -259,7 +259,7 @@ class SemesterField(FieldBase):
             c.initial = fieldsubmission.data['info']
 
         if not self.config['required']:
-            c.choices.insert(0, ('', '\u2014'))
+            c.choices = [('', '—')] + list(c.choices)
 
         return c
 

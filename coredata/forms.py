@@ -160,7 +160,7 @@ class PersonWidget(forms.TextInput):
             confirmwidget = ' Import %s %s (%s) from SIMS: ' % (self.sims_data['first_name'], self.sims_data['last_name'], self.sims_data['emplid'])
             confirmwidget += '<input type="checkbox" name="%s_confirm" />' % (name)
             confirmwidget += '<input type="hidden" name="%s_emplid" value="%s" />' % (name, self.sims_data['emplid'])
-            return textwidget + confirmwidget
+            return mark_safe(textwidget + confirmwidget)
         else:
             return super(PersonWidget, self).render(name, value, attrs=attrs, renderer=renderer)
 
