@@ -248,3 +248,18 @@ def log_view(request, log_type: str, log_id: str):
         'display_data': display_data,
     }
     return render(request, 'log/log_view.html', context)
+
+
+@requires_global_role("SYSA")
+def csp_reports(request):
+    import json
+    logs = LogEntry.objects.filter(description='CSP violation').order_by('-datetime')[:100]
+    def to_entry(l):
+        data = json.loads(l.comment)['csp-report']
+        return data.get('document-uri', 'Report'), l.datetime, data
+    reports = [to_entry(l) for l in logs]
+
+    context = {
+        'reports': reports,
+    }
+    return render(request, 'log/csp_reports.html', context)

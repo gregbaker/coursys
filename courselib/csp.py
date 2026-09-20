@@ -56,8 +56,9 @@ class CSPMiddleware(object):
                 f"style-src 'self' 'unsafe-inline' {extra_style_src} ; " \
                 f"img-src 'self' www.sfu.ca data: ; " \
                 f"font-src 'self' www.sfu.ca ; " \
-                f"script-src 'self' https://cdnjs.cloudflare.com {extra_script_src} ;{extra_csp}" \
-                f" report-uri /csp-reports ;"
+                f"script-src 'self' https://cdnjs.cloudflare.com {extra_script_src} ; " \
+                f"{extra_csp}" \
+                f"report-uri /csp-reports ;"
 
         response[header] = value
         return response
