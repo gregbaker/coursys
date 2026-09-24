@@ -3,6 +3,7 @@ import random
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from django.http.response import HttpResponse
+import urllib
 from log.models import LogEntry
 from coredata.models import Unit
 generic_related = None
@@ -43,22 +44,27 @@ class CSPMiddleware(object):
         if hasattr(response, 'allow_gstatic_csp') and response.allow_gstatic_csp:
             # pages that use Google charts need to load/run that code...
             extra_script_src += " https://www.gstatic.com https://www.google.com 'unsafe-eval'"
-            extra_style_src = ' https://www.gstatic.com https://ajax.googleapis.com https://www.google.com'
+            extra_style_src += ' https://www.gstatic.com https://ajax.googleapis.com https://www.google.com'
 
         if hasattr(response, 'has_inline_script') and response.has_inline_script:
-            # 'unsafe-inline' is ignored if a nonce value is present in the source list
+            # 'unsafe-inline' is ignored if a nonce value is present in the source list, so remove it here
             extra_script_src = " 'unsafe-inline'"
 
         if hasattr(response, 'allow_frames_csp') and response.allow_frames_csp:
             extra_csp += " frame-src 'self'"
 
+        report_uri = '/csp-reports'
+        request_id = request.META.get('HTTP_X_REQUEST_ID', None)
+        if request_id:
+            report_uri += f'?request_id={urllib.parse.quote(request_id)}'
+        
         value = f"default-src 'self' * ; " \
                 f"style-src 'self' 'unsafe-inline' {extra_style_src} ; " \
                 f"img-src 'self' www.sfu.ca data: ; " \
                 f"font-src 'self' www.sfu.ca ; " \
                 f"script-src 'self' https://cdnjs.cloudflare.com {extra_script_src} ; " \
                 f"{extra_csp}" \
-                f"report-uri /csp-reports ;"
+                f"report-uri {report_uri} ;"
 
         response[header] = value
         return response
@@ -81,10 +87,13 @@ def csp_report_view(request):
     #     # firefox browser plugin injection?
     #     return resp
 
+    if 'request_id' in request.GET:
+        report['request_id'] = request.GET['request_id']
+
     if generic_related is None:
         generic_related = Unit.objects.get(slug='univ')
     userid = request.user.username if request.user.is_authenticated else '_anon'
-    l = LogEntry(userid=userid, description='CSP violation', comment=report_json, related_object=generic_related)
+    l = LogEntry(userid=userid, description='CSP violation', comment=json.dumps(report), related_object=generic_related)
     l.save()
 
     if settings.DEBUG:
