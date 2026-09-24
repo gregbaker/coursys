@@ -2,6 +2,7 @@ from django.urls import include, re_path as url
 from django.views.generic import RedirectView
 from courselib.urlparts import USERID_SLUG, ACTIVITY_SLUG
 
+from attendance.urls import attendance_patterns
 from discipline.urls import discipline_offering_patterns
 from discuss.urls import discussion_patterns
 from groups.urls import group_patterns
@@ -43,6 +44,7 @@ activity_patterns = [ # prefix /COURSE_SLUG/+ACTIVITY_SLUG/
     url(r'^similarity/', include((similarity_patterns, 'similarity'), namespace='similarity')),
     url(r'^marking/', include((marking_patterns, 'marking'), namespace='marking')),
     url(r'^quiz/', include((quiz_patterns, 'quiz'), namespace='quiz')),
+    url(r'^attendance/', include((attendance_patterns, 'attendance'), namespace='attendance')),
 ]
 
 offering_patterns = [ # prefix /COURSE_SLUG/

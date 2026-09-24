@@ -1,0 +1,33 @@
+{% extends "base-wide.html" %}
+
+{% block headextra %}
+<script nonce="{{ CSP_NONCE }}">
+$(document).ready(function() {
+    var table = $('#attendance').dataTable({
+        "bPaginate": false,
+		"bJQueryUI": true,
+		"aaSorting": [[0, "asc"], [1, "asc"]],
+	});
+});
+</script>
+<style>
+
+</style>
+{% endblock %}
+
+{% block title %}Take Attendance{% endblock %}
+{% block h1 %}Take Attendance{% endblock %}
+{% block subbreadcrumbs %}<li><a href="{% url "offering:course_info" course_slug=offering.slug %}">{{ offering.name }}</a></li><li><a href="{{ activity.get_absolute_url }}">{{activity.name}}</a></li><li>Mark All Students</li>{% endblock %}
+
+{% block content %}
+
+<table id="attendance" class="display">
+    <thead><tr><th scope="col">Last Name</th><th scope="col">First Name</th><th scope="col">Username</th><th scope="col">Status</th></tr></thead>
+    <tbody>
+    {% for m in students %}
+        <tr><td>{{ m.person.last_name }}</td><td>{{ m.person.first_name }}</td><td>{{ m.person.userid }}</td><td></td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

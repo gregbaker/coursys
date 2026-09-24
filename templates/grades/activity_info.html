@@ -130,6 +130,9 @@ Column logic:
 	    <a href="{% url "offering:marking:manage_activity_components" course_slug=course.slug activity_slug=activity.slug%}">Configure Marking</a>
 	    </li>
 	    {% endif %}
+		{% if course.attendance %}
+		<li><a href="{% url "offering:attendance:take" course_slug=course.slug activity_slug=activity.slug %}">Take Attendance</a></li>
+		{% endif %}
 	    {% if sub_comps %}
 	    <li><a href="{% url "offering:submission:download_activity_files" course_slug=course.slug activity_slug=activity.slug%}">Download Submissions</a></li>
 	    {% endif %}

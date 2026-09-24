@@ -165,6 +165,7 @@ def course_config(request, course_slug):
             course.set_taemail(form.cleaned_data['taemail'])
             course.set_group_min(form.cleaned_data['group_min'])
             course.set_group_max(form.cleaned_data['group_max'])
+            course.set_attendance(form.cleaned_data['attendance'])
             course.save()
             forum.enabled = form.cleaned_data['forum']
             forum.identity = form.cleaned_data['forum_identity']
@@ -179,8 +180,8 @@ def course_config(request, course_slug):
 
             return HttpResponseRedirect(reverse('offering:course_info', kwargs={'course_slug': course_slug}))
     else:
-        form = CourseConfigForm({'url': course.url(), 'taemail': course.taemail(), 'forum': forum.enabled, 'forum_identity': forum.identity,
-                'group_min': course.group_min(),'group_max': course.group_max()})
+        form = CourseConfigForm({'url': course.url(), 'taemail': course.taemail(), 'attendance': course.attendance(), 'forum': forum.enabled,
+            'forum_identity': forum.identity, 'group_min': course.group_min(),'group_max': course.group_max()})
     
     context = {'course': course, 'form': form}
     return render(request, "grades/course_config.html", context)

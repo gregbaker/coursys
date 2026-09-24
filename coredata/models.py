@@ -1034,7 +1034,7 @@ class CourseOffering(models.Model, ConditionalSaveMixin):
                 'extra_bu': '0', 'page_creators': 'STAF', 'discussion': False,
                 'joint_with': (), 'group_min': 1, 'group_max': 50,
                 'maillist': None, 'labtut_use': False, 'group_span_activities': True,
-                'contact_url': None}
+                'contact_url': None, 'attendance': False}
     labtut, set_labtut = getter_setter('labtut')
     labtut_use, set_labtut_use = getter_setter('labtut_use')
     _, set_labtas = getter_setter('labtas')
@@ -1044,6 +1044,7 @@ class CourseOffering(models.Model, ConditionalSaveMixin):
     extra_bu_str, set_extra_bu_str = getter_setter('extra_bu')
     page_creators, set_page_creators = getter_setter('page_creators')
     discussion, set_discussion = getter_setter('discussion')
+    attendance, set_attendance = getter_setter('attendance')
     _, set_sessional_pay = getter_setter('sessional_pay')
     joint_with, set_joint_with = getter_setter('joint_with')
     _, set_group_min = getter_setter('group_min')
@@ -1051,7 +1052,7 @@ class CourseOffering(models.Model, ConditionalSaveMixin):
     group_span_activities, set_group_span_activities = getter_setter('group_span_activities')
     _, set_maillist = getter_setter('maillist')
     copy_config_fields = [ # fields that should be copied when instructor does "copy course setup"
-            'url', 'taemail', 'page_creators', 'discussion',
+            'url', 'taemail', 'page_creators', 'discussion', 'attendance',
             'group_min', 'group_max', 'group_span_activities', 'contact_url'
     ] 
     

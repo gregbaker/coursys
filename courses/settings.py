@@ -73,6 +73,7 @@ INSTALLED_APPS = (
     'postdoc',
     'forum',
     'system',
+    'attendance',
 )
 MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',

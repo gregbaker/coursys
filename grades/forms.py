@@ -312,6 +312,8 @@ class CourseConfigForm(forms.Form):
             help_text="Email address to contact the TAs: set if you have a central contact address/list and don't want to encourage use of TAs' individual emails",)
     #discussion = forms.BooleanField(required=False, label='Discussion',
     #        help_text="Should the student/TA/instructor discussion forum be activated for this course?")
+    attendance = forms.BooleanField(required=False, label='Attendance',
+            help_text="Should the attendance taking features be activated for this course?")
     forum = forms.BooleanField(required=False, label='Discussion Forum',
             help_text="Should the discussion forum be activated for this course?")
     forum_identity = forms.ChoiceField(required=True, label='Discussion Forum Anonymity', choices=IDENTITY_CHOICES,
