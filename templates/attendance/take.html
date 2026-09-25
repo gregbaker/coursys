@@ -12,23 +12,97 @@
 <script src="{% static 'htmx.org/dist/htmx.min.js' %}"></script>
 {% endcompress %}
 <script nonce="{{ CSP_NONCE }}">
+const refresh_url = "{% url 'offering:attendance:refresh' course_slug=offering.slug activity_slug=activity.slug %}";
 $(document).ready(function() {
+    attendance_ready();
+});
+
+
+function update() {
+    fetch(refresh_url)
+    .then(response => response.json())
+    .then(data => {
+        for ( const sid in data ) {
+            console.log(sid, data[sid])
+            htmx.swap(sid, data[sid], { swapStyle: 'outerHTML' });
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+function attendance_ready() {
+    document.body.addEventListener("showSaved", function(e){
+        const successNotification = window.createNotification({
+            theme: 'success',
+            showDuration: 5000
+        })({ 
+            message: e.detail.value
+        });
+    });
+
+    setInterval(update, 60000);
+
     var table = $('#attendance').dataTable({
         "bPaginate": false,
 		"bJQueryUI": true,
 		"aaSorting": [[0, "asc"], [1, "asc"]],
 	});
-});
+}
 </script>
 <style>
-table#attendance .btn {
-    display: inline;
-    padding: 0em 0.5em;
-    margin: 0.25em 0.25em;
+/* based on https://www.w3.org/WAI/ARIA/apg/patterns/switch/examples/switch-checkbox/ */
+table#attendance label {
+  display: inline-block;
+  margin: 0;
+  padding: 0.5em 0em;
+  border-radius: 0.5em;
 }
-table#attendance .btn.inactive {
-    background-color: #aaa;
-    border-bottom-color: #777;
+table#attendance label .label {
+  display: inline-block;
+  width: 9em;
+  user-select: none;
+}
+table#attendance label input[role="switch"] {
+  opacity: 0;
+  width: 0;
+}
+table#attendance label input[role="switch"] ~ .state {
+  display: inline-block;
+  user-select: none;
+  width: 7em;
+}
+table#attendance label input[role="switch"] ~ .state > .container {
+  position: relative;
+  display: inline-block;
+  border: 2px solid black;
+  width: 2.5em;
+  height: 1.5em;
+  border-radius: 0.75em;
+}
+table#attendance label input[role="switch"] ~ .state > .container > .position {
+  position: relative;
+  top: 0.1em;
+  left: 0.2em;
+  display: inline-block;
+  border: 0.2em solid black;
+  border-radius: 0.5em;
+  width: 1em;
+  height: 1em;
+  background: black;
+  opacity: 0.6;
+}
+table#attendance label input[role="switch"]:not(:checked) ~ .state span.on {
+  display: none;
+}
+table#attendance label input[role="switch"]:checked ~ .state > span.off {
+  display: none;
+}
+table#attendance label input[role="switch"]:checked ~ .state > .container > .position {
+  left: 1.1em;
+  border-color: green;
+  background: green;
+  opacity: 1;
 }
 </style>
 {% endblock %}
@@ -40,7 +114,7 @@ table#attendance .btn.inactive {
 {% block content %}
 
 <table id="attendance" class="display" hx-headers='{"x-csrftoken": "{{ csrf_token }}"}'>
-    <thead><tr><th scope="col">Last Name</th><th scope="col">First Name</th><th scope="col">Userid</th><th scope="col">Status</th></tr></thead>
+    <thead><tr><th scope="col">Last Name</th><th scope="col">First Name</th><th scope="col">Userid</th><th scope="col">Present?</th></tr></thead>
     <tbody>
     {% for student, attendance in student_data %}
         <tr>
