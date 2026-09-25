@@ -24,7 +24,14 @@ class Attendance(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.student.username}, {self.activity.name}: {self.status}"
+        return f"{self.student.person.userid}, {self.activity.name}: {self.status}"
+
+    def save_change(self) -> None:
+        """
+        Create a corresponding AttendanceChange object
+        """
+        ac = AttendanceChange(student=self.student, activity=self.activity, marker=self.marker, status=self.status)
+        ac.save()
 
 
 class AttendanceChange(models.Model):

@@ -1,0 +1,14 @@
+<div class="button-group" id="buttons-{{ userid }}">
+    <button type="button" 
+            class="btn {% if status == 'YES' %}active{% else %}inactive{% endif %}"
+            hx-post="{% url "offering:attendance:set" course_slug=offering.slug activity_slug=activity.slug userid=userid %}"
+            hx-vals='{"status": "YES"}'
+            hx-target="#buttons-{{ userid }}"
+            title="Mark present">Present</button>
+    <button type="button" 
+            class="btn {% if status == 'NO' %}active{% else %}inactive{% endif %}"
+            hx-post="{% url "offering:attendance:set" course_slug=offering.slug activity_slug=activity.slug userid=userid %}"
+            hx-vals='{"status": "NO"}'
+            hx-target="#buttons-{{ userid }}"
+            title="Mark absent">Absent</button>
+</div>

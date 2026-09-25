@@ -1,6 +1,16 @@
 {% extends "base-wide.html" %}
+{% load static %}
+{% load compress %}
 
 {% block headextra %}
+
+{% compress css %}
+<link rel="stylesheet" href="{% static "styled-notifications/dist/notifications.css" %}" />
+{% endcompress %}
+{% compress js %}
+<script src="{% static 'styled-notifications/dist/notifications.js' %}"></script>
+<script src="{% static 'htmx.org/dist/htmx.min.js' %}"></script>
+{% endcompress %}
 <script nonce="{{ CSP_NONCE }}">
 $(document).ready(function() {
     var table = $('#attendance').dataTable({
@@ -11,21 +21,32 @@ $(document).ready(function() {
 });
 </script>
 <style>
-
+table#attendance .btn {
+    display: inline;
+    padding: 0em 0.5em;
+    margin: 0.25em 0.25em;
+}
+table#attendance .btn.inactive {
+    background-color: #aaa;
+    border-bottom-color: #777;
+}
 </style>
 {% endblock %}
 
 {% block title %}Take Attendance{% endblock %}
 {% block h1 %}Take Attendance{% endblock %}
-{% block subbreadcrumbs %}<li><a href="{% url "offering:course_info" course_slug=offering.slug %}">{{ offering.name }}</a></li><li><a href="{{ activity.get_absolute_url }}">{{activity.name}}</a></li><li>Mark All Students</li>{% endblock %}
+{% block subbreadcrumbs %}<li><a href="{% url "offering:course_info" course_slug=offering.slug %}">{{ offering.name }}</a></li><li><a href="{{ activity.get_absolute_url }}">{{activity.name}}</a></li><li>Attendance</li>{% endblock %}
 
 {% block content %}
 
-<table id="attendance" class="display">
-    <thead><tr><th scope="col">Last Name</th><th scope="col">First Name</th><th scope="col">Username</th><th scope="col">Status</th></tr></thead>
+<table id="attendance" class="display" hx-headers='{"x-csrftoken": "{{ csrf_token }}"}'>
+    <thead><tr><th scope="col">Last Name</th><th scope="col">First Name</th><th scope="col">Userid</th><th scope="col">Status</th></tr></thead>
     <tbody>
-    {% for m in students %}
-        <tr><td>{{ m.person.last_name }}</td><td>{{ m.person.first_name }}</td><td>{{ m.person.userid }}</td><td></td></tr>
+    {% for student, attendance in student_data %}
+        <tr>
+            <td>{{ student.person.last_name }}</td><td>{{ student.person.first_name }}</td><td>{{ student.person.userid }}</td>
+            <td>{% include "attendance/_buttons.html" with offering=offering activity=activity userid=student.person.userid status=attendance.status only %}</td>
+        </tr>
     {% endfor %}
     </tbody>
 </table>
