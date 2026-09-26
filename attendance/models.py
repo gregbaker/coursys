@@ -29,40 +29,54 @@ class Attendance(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         # Create a corresponding AttendanceChange object
-        ac = AttendanceChange(student=self.student, activity=self.activity, marker=self.marker, status=self.status)
-        ac.save()
+        AttendanceChange(
+            student=self.student,
+            activity=self.activity,
+            marker=self.marker,
+            status=self.status,
+        ).save()
         # And update any downstream grades
         self.update_linked_grades()
 
     def update_linked_grades(self):
+        # if this is a "attendance = full marks" activity...
         try:
             numeric_activity = NumericActivity.objects.get(id=self.activity_id)
-            if self.activity.attendance() == 'THIS':
+            if self.activity.attendance() == "THIS":
                 try:
-                    g = NumericGrade.objects.get(activity=numeric_activity, member=self.student)
+                    g = NumericGrade.objects.get(
+                        activity=numeric_activity, member=self.student
+                    )
                 except NumericGrade.DoesNotExist:
-                    g = NumericGrade(activity=numeric_activity, member=self.student, flag='GRAD')
-                if g.flag == 'GRAD':
-                    g.value = numeric_activity.max_grade
+                    g = NumericGrade(
+                        activity=numeric_activity, member=self.student, flag="GRAD"
+                    )
+                if g.flag == "GRAD":
+                    g.value = numeric_activity.max_grade if self.status == "YES" else 0
                     g.save(entered_by=self.marker.person)
 
         except NumericActivity.DoesNotExist:
             pass
 
+        # if there are any "count attendances for grade" activities...
         sum_activities = [
-            a for a in 
-            NumericActivity.objects.filter(offering=self.activity.offering)
-            if a.attendance() == 'SUM'
+            a
+            for a in NumericActivity.objects.filter(offering=self.activity.offering)
+            if a.attendance() == "SUM"
         ]
         if sum_activities:
-            total = Attendance.objects.filter(activity__offering=self.activity.offering, student=self.student, status='YES').count()
+            total = Attendance.objects.filter(
+                activity__offering=self.activity.offering,
+                student=self.student,
+                status="YES",
+            ).count()
             for a in sum_activities:
                 try:
                     g = NumericGrade.objects.get(activity=a, member=self.student)
-                    if g.flag != 'CALC':
+                    if g.flag not in ["NOGR", "CALC"]:
                         continue
                 except NumericGrade.DoesNotExist:
-                    g = NumericGrade(activity=a, member=self.student, flag='CALC')
+                    g = NumericGrade(activity=a, member=self.student, flag="CALC")
 
                 g.value = total
                 g.save(entered_by=self.marker.person)
