@@ -604,7 +604,7 @@ def add_numeric_activity(request, course_slug):
             activities_list.append((a.slug, a.name))
     
     if request.method == 'POST': # If the form has been submitted...
-        form = NumericActivityForm(request.POST, previous_activities=activities_list) # A form bound to the POST data
+        form = NumericActivityForm(data=request.POST, offering=course, previous_activities=activities_list) # A form bound to the POST data
         form.activate_addform_validation(course_slug)
         if form.is_valid(): # All validation rules pass
             try:
@@ -617,6 +617,7 @@ def add_numeric_activity(request, course_slug):
                         'showstats': form.cleaned_data['showstats'],
                         'showhisto': form.cleaned_data['showhisto'],
                         'url': form.cleaned_data['url'],
+                        'attendance': form.cleaned_data['attendance'],
                         }
                 a = NumericActivity.objects.create(name=form.cleaned_data['name'],
                                                 short_name=form.cleaned_data['short_name'],
@@ -647,7 +648,7 @@ def add_numeric_activity(request, course_slug):
         else:
             messages.error(request, "Please correct the error below")
     else:
-        form = NumericActivityForm(previous_activities=activities_list)
+        form = NumericActivityForm(offering=course, previous_activities=activities_list)
     context = {'course': course, 'form': form, 'form_type': FORMTYPE['add']}
     return render(request, 'grades/numeric_activity_form.html', context)
     
@@ -657,7 +658,7 @@ def add_cal_numeric_activity(request, course_slug):
     numeric_activities = NumericActivity.objects.filter(offering=course, deleted=False)
     
     if request.method == 'POST': # If the form has been submitted...
-        form = CalNumericActivityForm(request.POST) # A form bound to the POST data
+        form = CalNumericActivityForm(data=request.POST, offering=course) # A form bound to the POST data
         form.activate_addform_validation(course_slug)
         if form.is_valid(): # All validation rules pass
             try:
@@ -690,7 +691,7 @@ def add_cal_numeric_activity(request, course_slug):
         else:
             messages.error(request, "Please correct the error below")
     else:
-        form = CalNumericActivityForm(initial={'formula': '[[activitytotal]]'})
+        form = CalNumericActivityForm(initial={'formula': '[[activitytotal]]'}, offering=course)
     context = {'course': course, 'form': form, 'numeric_activities': numeric_activities, 'form_type': FORMTYPE['add']}
     resp = render(request, 'grades/cal_numeric_activity_form.html', context)
     resp.has_inline_script = True # insert activity in formula links
@@ -704,7 +705,7 @@ def add_cal_letter_activity(request, course_slug):
     examact_choices = [(0, '\u2014')] + [(na.pk, na.name) for na in Activity.objects.filter(offering=course, deleted=False)]
 
     if request.method == 'POST': # If the form has been submitted...
-        form = CalLetterActivityForm(request.POST) # A form bound to the POST data
+        form = CalLetterActivityForm(data=request.POST, offering=course) # A form bound to the POST data
         form.fields['numeric_activity'].choices = numact_choices
         form.fields['exam_activity'].choices = examact_choices
         form.activate_addform_validation(course_slug)
@@ -744,7 +745,7 @@ def add_cal_letter_activity(request, course_slug):
         else:
             messages.error(request, "Please correct the error below")
     else:
-        form = CalLetterActivityForm()
+        form = CalLetterActivityForm(offering=course)
         form.fields['numeric_activity'].choices = numact_choices
         form.fields['exam_activity'].choices = examact_choices
     context = {'course': course, 'form': form, 'letter_activities': letter_activities, 'form_type': FORMTYPE['add']}
@@ -890,6 +891,7 @@ def _create_activity_formdatadict(activity):
         data['showhisto'] = activity.config['showhisto']
     if 'calculation_leak' in activity.config:
         data['calculation_leak'] = activity.config['calculation_leak']
+    data['attendance'] = activity.attendance()
 
     for (k, v) in list(GROUP_STATUS_MAP.items()):
         if activity.group == v:
@@ -920,6 +922,8 @@ def _populate_activity_from_formdata(activity, data):
         activity.percent = data['percent']
     if 'group' in data:
         activity.group = GROUP_STATUS_MAP[data['group']]
+    if 'attendance' in data:
+        activity.set_attendance(data['attendance'])
     if 'max_grade' in data:
         activity.max_grade = data['max_grade']
     if 'formula' in data:
@@ -977,15 +981,15 @@ def edit_activity(request, course_slug, activity_slug):
         
         if request.method == 'POST': # If the form has been submitted...
             if isinstance(activity, CalNumericActivity):
-                form = CalNumericActivityForm(request.POST)
+                form = CalNumericActivityForm(data=request.POST, offering=course)
             elif isinstance(activity, NumericActivity):
-                form = NumericActivityForm(request.POST, previous_activities=activities_list) 
+                form = NumericActivityForm(data=request.POST, offering=course, previous_activities=activities_list) 
             elif isinstance(activity, CalLetterActivity):
-                form = CalLetterActivityForm(request.POST)
+                form = CalLetterActivityForm(data=request.POST, offering=course)
                 form.fields['numeric_activity'].choices = numact_choices
                 form.fields['exam_activity'].choices = examact_choices
             elif isinstance(activity, LetterActivity):
-                form = LetterActivityForm(request.POST, previous_activities=activities_list)
+                form = LetterActivityForm(data=request.POST, offering=course, previous_activities=activities_list)
 
             form.activate_editform_validation(course_slug, activity_slug)
             
@@ -1016,18 +1020,18 @@ def edit_activity(request, course_slug, activity_slug):
         else:
             datadict = _create_activity_formdatadict(activity)
             if isinstance(activity, CalNumericActivity):
-                form = CalNumericActivityForm(initial=datadict)
+                form = CalNumericActivityForm(initial=datadict, offering=course)
             elif isinstance(activity, NumericActivity):
-                form = NumericActivityForm(initial=datadict, previous_activities=activities_list)
+                form = NumericActivityForm(initial=datadict, offering=course, previous_activities=activities_list)
             elif isinstance(activity, CalLetterActivity):
-                form = CalLetterActivityForm(initial=datadict)
+                form = CalLetterActivityForm(initial=datadict, offering=course)
                 form.fields['numeric_activity'].choices = numact_choices
                 form.fields['exam_activity'].choices = examact_choices
                 # set initial value in form to current value
             elif isinstance(activity, LetterActivity):
-                form = LetterActivityForm(initial=datadict, previous_activities=activities_list)
+                form = LetterActivityForm(initial=datadict, offering=course, previous_activities=activities_list)
             elif isinstance(activity, CalLetterActivity):
-                form = CalLetterActivityForm(initial=datadict)
+                form = CalLetterActivityForm(initial=datadict, offering=course)
                 form.fields['numeric_activity'].choices = numact_choices
                 form.fields['exam_activity'].choices = examact_choices
 
@@ -1126,7 +1130,7 @@ def add_letter_activity(request, course_slug):
             activities_list.append((a.slug, a.name))
 
     if request.method == 'POST': # If the form has been submitted...
-        form = LetterActivityForm(request.POST, previous_activities=activities_list) # A form bound to the POST data
+        form = LetterActivityForm(data=request.POST, offering=course, previous_activities=activities_list) # A form bound to the POST data
         form.activate_addform_validation(course_slug)
         if form.is_valid(): # All validation rules pass
             #try:
@@ -1164,7 +1168,7 @@ def add_letter_activity(request, course_slug):
                 return HttpResponseRedirect(reverse('offering:course_info',
                                                 kwargs={'course_slug': course_slug}))
     else:
-        form = LetterActivityForm(previous_activities=activities_list)
+        form = LetterActivityForm(offering=course, previous_activities=activities_list)
     activities = course.activity_set.all()
     context = {'course': course, 'form': form, 'form_type': FORMTYPE['add']}
     return render(request, 'grades/letter_activity_form.html', context)

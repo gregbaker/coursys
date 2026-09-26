@@ -66,6 +66,12 @@ LETTER_GRADE_CHOICES = GPA_GRADE_CHOICES + NON_GPA_GRADE_CHOICES
 LETTER_GRADE = dict(LETTER_GRADE_CHOICES)
 LETTER_GRADE_CHOICES_IN = set(LETTER_GRADE.keys())
 
+ATTENDANCE_CONFIG_CHOICES = [
+    ('THIS', 'Attendance here gives full marks for this activity'),
+    ('SUM', 'Mark here = total number of activities attended'),
+    ('NO', 'No'),
+]
+
 
 class Activity(models.Model):
     """
@@ -88,6 +94,7 @@ class Activity(models.Model):
     deleted = models.BooleanField(null = False, db_index = True, default=False)
     config = JSONField(null=False, blank=False, default=dict) # addition configuration stuff:
     # .config['url'] (string, default None): URL for more info
+    # .config['attendance'] (string, default 'NO'): setting for linking to attendance. See ATTENDANCE_CONFIG_CHOICES
     # .config['showstats'] (boolean, default True): show students summary stats for this activity?
     # .config['showhisto'] (boolean, default True): show students histogram for this activity?
     # .config['multisubmit'] (boolean, default False): Use the "submit many times" behaviour?
@@ -97,13 +104,14 @@ class Activity(models.Model):
     offering = models.ForeignKey(CourseOffering, on_delete=models.PROTECT)
     
     defaults = {'url': '', 'showstats': True, 'showhisto': True, 'showformula': False, 'multisubmit': False,
-                'calculation_leak': False, 'quiz_marking': False}
+                'calculation_leak': False, 'quiz_marking': False, 'attendance': 'NO'}
     url, set_url = getter_setter('url')
     showstats, set_showstats = getter_setter('showstats')
     showhisto, set_showhisto = getter_setter('showhisto')
     multisubmit, set_multisubmit = getter_setter('multisubmit')
     calculation_leak, set_calculation_leak = getter_setter('calculation_leak')
     quiz_marking, set_quiz_marking = getter_setter('quiz_marking')
+    attendance, set_attendance = getter_setter('attendance')
 
     def __str__(self):
         return "%s - %s" % (self.offering, self.name)

@@ -44,7 +44,7 @@ def set(request: HttpRequest, course_slug: str, activity_slug: str, userid: str)
     except Attendance.DoesNotExist:
         a = Attendance(student=student, activity=activity)
     a.marker = marker
-    a.status = "YES" if request.POST.get(f'switch-{userid}') else "NO"
+    a.status = "YES" if request.POST.get('status', 'NO') == 'YES' else "NO"
     a.save()
     a.save_change()
 

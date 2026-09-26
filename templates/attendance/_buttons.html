@@ -1,17 +1,4 @@
 <div class="button-group" id="buttons-{{ userid }}">
-<label>
-    <input id="id-switch-{{ userid }}" name="switch-{{ userid }}" type="checkbox" role="switch"
-        {% if status == 'YES' %}checked{% endif %} value="1"
-        hx-trigger="change"
-        hx-target="#buttons-{{ userid }}"
-        hx-post="{% url 'offering:attendance:set' course_slug=offering.slug activity_slug=activity.slug userid=userid %}" />
-    <span class="state">
-      <span class="container"><span class="position"></span></span>
-      <span class="on" aria-hidden="true">Present</span>
-      <span class="off" aria-hidden="true">Absent</span>
-    </span>
-</label>
-<!--
     <button type="button" 
             class="btn {% if status == 'YES' %}active{% else %}inactive{% endif %}"
             hx-post="{% url "offering:attendance:set" course_slug=offering.slug activity_slug=activity.slug userid=userid %}"
@@ -24,5 +11,4 @@
             hx-vals='{"status": "NO"}'
             hx-target="#buttons-{{ userid }}"
             title="Mark absent">Absent</button>
--->
 </div>

@@ -1,5 +1,5 @@
 from django import forms
-from grades.models import ACTIVITY_STATUS_CHOICES, NumericActivity, LetterActivity, CalNumericActivity, Activity, NumericGrade, LetterGrade,ACTIVITY_TYPES, LETTER_GRADE_CHOICES
+from grades.models import ACTIVITY_STATUS_CHOICES, ATTENDANCE_CONFIG_CHOICES, NumericActivity, LetterActivity, CalNumericActivity, Activity, NumericGrade, LetterGrade,ACTIVITY_TYPES, LETTER_GRADE_CHOICES
 from coredata.models import CourseOffering
 from groups.models import GroupMember
 from django.utils.safestring import mark_safe
@@ -33,8 +33,9 @@ class ActivityForm(forms.Form):
                                  help_text='Page for more information, e.g. assignment description or exam info',
                                  widget=forms.TextInput(attrs={'size':'60'}))
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, offering: CourseOffering, *args, **kwargs):
         super(ActivityForm, self).__init__(*args, **kwargs)
+        self.offering = offering
         self._addform_validate = False
         self._editform_validate = False
 
@@ -134,7 +135,6 @@ class ActivityForm(forms.Form):
 
 
 class NumericActivityForm(ActivityForm):
-        
     status = forms.ChoiceField(choices=ACTIVITY_STATUS_CHOICES, initial='URLS',
             help_text='visibility of grades/activity to students')
     due_date = forms.SplitDateTimeField(required=False,
@@ -144,6 +144,9 @@ class NumericActivityForm(ActivityForm):
             widget=forms.NumberInput(attrs={'class': 'gradeinput'}))
     group = forms.ChoiceField(label='Group activity', initial='1',
             choices=GROUP_STATUS_CHOICES,
+            widget=forms.RadioSelect())
+    attendance = forms.ChoiceField(label='Link to attendance taking?', initial='NO',
+            choices=ATTENDANCE_CONFIG_CHOICES,
             widget=forms.RadioSelect())
     extend_group = forms.ChoiceField(choices = [('NO', 'None')],
             label='Extend groups from', required=False,
@@ -162,6 +165,9 @@ class NumericActivityForm(ActivityForm):
             tmp_act_list = [(None, 'Not available'),]
 
         super(NumericActivityForm, self).__init__(*args, **kwargs)
+
+        if not self.offering.attendance():
+            del self.fields['attendance']
 
         self.fields['extend_group'].choices = tmp_act_list
     
