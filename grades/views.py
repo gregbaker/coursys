@@ -165,7 +165,7 @@ def course_config(request, course_slug):
             course.set_taemail(form.cleaned_data['taemail'])
             course.set_group_min(form.cleaned_data['group_min'])
             course.set_group_max(form.cleaned_data['group_max'])
-            course.set_attendance(form.cleaned_data['attendance'])
+            course.set_attendance(form.cleaned_data.get('attendance', 'NO'))
             course.save()
             forum.enabled = form.cleaned_data['forum']
             forum.identity = form.cleaned_data['forum_identity']
@@ -617,7 +617,7 @@ def add_numeric_activity(request, course_slug):
                         'showstats': form.cleaned_data['showstats'],
                         'showhisto': form.cleaned_data['showhisto'],
                         'url': form.cleaned_data['url'],
-                        'attendance': form.cleaned_data['attendance'],
+                        'attendance': form.cleaned_data.get('attendance', 'NO'),
                         }
                 a = NumericActivity.objects.create(name=form.cleaned_data['name'],
                                                 short_name=form.cleaned_data['short_name'],
