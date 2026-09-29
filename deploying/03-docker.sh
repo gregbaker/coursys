@@ -15,6 +15,8 @@ else
 fi
 [ -f /etc/yum.repos.d/docker-ce.repo ] || ( ${DNF_ADD} https://download.docker.com/linux/${ID}/docker-ce.repo )
 
+dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
 systemctl enable --now docker
 
 echo 'alias dc="docker compose"' > /etc/profile.d/coursys.sh
