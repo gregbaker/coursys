@@ -1,5 +1,6 @@
 # coding=utf-8
 
+from attendance.models import Attendance
 from grades.formulas import parse, cols_used, eval_parse, EvalException, ParseException
 from grades.models import Activity, NumericActivity, LetterActivity, CalNumericActivity, CalLetterActivity, \
     NumericGrade, LetterGrade, GradeHistory, all_activities_filter, ACTIVITY_STATUS, sorted_letters, \
@@ -53,6 +54,8 @@ class GradesTest(TestCase):
         p = Person.objects.get(userid="0aaa0")
         m = Member(person=p, offering=c, role="STUD", credits=3, added_reason="UNK")
         m.save()
+        inst = Member(person=Person.objects.get(userid='ggbaker'), offering=c, role="STUD", credits=0, added_reason="AUTO")
+        inst.save()
        
         a = NumericActivity(name="Paragraph", short_name="\u00b6", status="RLS", offering=c, position=3, max_grade=40, percent=5)
         a.save()
@@ -66,6 +69,8 @@ class GradesTest(TestCase):
         a2.save(entered_by='ggbaker')
         g = NumericGrade(activity=a2, member=m, value=30, flag="GRAD")
         g.save(entered_by='ggbaker')
+        at1 = Attendance(activity=a1, student=m, status='YES', marker=inst)
+        at1.save()
         
         ca = CalNumericActivity(name="Final Grade", short_name="FG", status="RLS", offering=c, position=4, max_grade=1)
         ca.save()
@@ -73,13 +78,13 @@ class GradesTest(TestCase):
         activities = NumericActivity.objects.filter(offering=c)
         act_dict = activities_dictionary(activities)
         
-        # make sure a formula can be pickled and unpickled safely (i.e. can be cached)
-        tree = parse("sum([Assignment #1], [A1], [A2])/20*-3", c, ca)
+        # make sure a parsed formula can be pickled and unpickled safely (i.e. can be cached)
+        tree = parse("sum([Assignment #1], [A1], [A2])/20*-3 + [A4.attendance]", c, ca)
         p = pickle.dumps(tree)
         tree2 = pickle.loads(p)
         self.assertEqual(tree, tree2)
         # check that it found the right list of columns used
-        self.assertEqual(cols_used(tree), set(['A1', 'A2', 'Assignment #1']))
+        self.assertEqual(cols_used(tree), set(['A1', 'A2', 'Assignment #1', 'A4']))
         
         # test parsing and evaluation to make sure we get the right values out
         for expr, correct in test_formulas:
@@ -148,6 +153,17 @@ class GradesTest(TestCase):
         tree = parse(expr, c, ca)
         res = eval_parse(tree, ca, act_dict, m, True)
         self.assertAlmostEqual(res, 7.229166666)
+
+        # test [[attendancetotal]]
+        expr = "[[attendancetotal]] + 5"
+        tree = parse(expr, c, ca)
+        res = eval_parse(tree, ca, act_dict, m, True)
+        self.assertAlmostEqual(res, 6.0)
+        at1.status = 'NO'
+        at1.save()
+        res = eval_parse(tree, ca, act_dict, m, True)
+        self.assertAlmostEqual(res, 5.0)
+
 
     def test_activities(self):
         """

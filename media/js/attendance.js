@@ -20,7 +20,7 @@ function attendance_ready() {
         });
     });
 
-    setInterval(attendance_update, 6000);
+    setInterval(attendance_update, 60000);
 
     var table = $('#attendance').dataTable({
         "bPaginate": false,

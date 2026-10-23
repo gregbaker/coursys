@@ -13,6 +13,7 @@
 
 from pyparsing import ParseException
 import itertools
+from attendance.models import Attendance
 from grades.models import NumericActivity
 
 class EvalException(Exception):
@@ -46,15 +47,18 @@ def create_parser():
         elif col.endswith(".final"):
             col = col[:-6]
             return ("col", set([col]), col, 'fin')
+        elif col.endswith(".attendance"):
+            col = col[:-11]
+            return ("col", set([col]), col, 'att')
         else:
             return ("col", set([col]), col, 'val')
 
     def actionflag_parse(toks):
         """
-        Parse the [[activitytotal]] special case
+        Parse the [[activitytotal]] and [[attendancetotal]] special case
         """
         flag = toks[0][0]
-        if flag == 'activitytotal':
+        if flag in ['activitytotal', 'attendancetotal']:
             # dependant activity True is a flag meaning "everything": fixed later.
             return ("flag", set([True]), flag)
     
@@ -169,6 +173,20 @@ def visible_grade(act, member, visible, calculating_leak=False):
         return float(grade.value)
     
 
+def visible_attendance(act, member, visible, calculating_leak=False):
+    """
+    Return student-visible attendance grade (0 or 1) on this activity. Behaviour of "calculating_leak" is same as for visible_grade.
+    """
+    if not calculating_leak and visible and act.status != 'RLS':
+        return 0.0
+
+    attendances = Attendance.objects.filter(student=member, activity=act)
+    if attendances and attendances[0].status == "YES":
+        return 1.0
+    else:
+        return 0.0
+    
+
 def eval_parse(tree, activity, act_dict, member, visible):
     """
     Evaluate an expression given its parse tree and dictionary of column values.
@@ -206,6 +224,8 @@ def eval_parse(tree, activity, act_dict, member, visible):
                     return 0.0
             else:
                 return 0.0
+        elif part=="att":
+            return visible_attendance(act, member, visible, calculating_leak=calculating_leak)
 
     elif t == 'num':
         return tree[2]
@@ -274,6 +294,9 @@ def eval_parse(tree, activity, act_dict, member, visible):
                 if max_grade:
                     total += grade/max_grade * float(act.percent)
             return total
+        elif flag == 'attendancetotal':
+            # count of "present" attendance for all activities
+            return Attendance.objects.filter(activity__offering=activity.offering, student=member, status='YES').count()
         else:
             raise EvalException("Unknown flag in parse tree: %s" % (flag,))
     else:

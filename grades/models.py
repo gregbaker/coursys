@@ -68,7 +68,6 @@ LETTER_GRADE_CHOICES_IN = set(LETTER_GRADE.keys())
 
 ATTENDANCE_CONFIG_CHOICES = [
     ('THIS', 'Attendance here gives full marks for this activity'),
-    ('SUM', 'Mark here = total number of activities attended'),
     ('NO', 'No'),
 ]
 

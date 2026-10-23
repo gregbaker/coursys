@@ -558,9 +558,9 @@ def format_number(value, decimal_places):
         return "%.*f" % (decimal_places, value)
 
 
-
 class ValidationError(Exception):
     pass
+
 
 def parse_and_validate_formula(formula, course, activity, numeric_activities):
     """
@@ -584,6 +584,7 @@ def parse_and_validate_formula(formula, course, activity, numeric_activities):
     except ParseException:
         raise ValidationError('Incorrect formula syntax')
     return parsed_expr
+
 
 def calculate_numeric_grade(course, activity, student=None):
     """

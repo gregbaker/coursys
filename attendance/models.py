@@ -59,27 +59,27 @@ class Attendance(models.Model):
             pass
 
         # if there are any "count attendances for grade" activities...
-        sum_activities = [
-            a
-            for a in NumericActivity.objects.filter(offering=self.activity.offering)
-            if a.attendance() == "SUM"
-        ]
-        if sum_activities:
-            total = Attendance.objects.filter(
-                activity__offering=self.activity.offering,
-                student=self.student,
-                status="YES",
-            ).count()
-            for a in sum_activities:
-                try:
-                    g = NumericGrade.objects.get(activity=a, member=self.student)
-                    if g.flag not in ["NOGR", "CALC"]:
-                        continue
-                except NumericGrade.DoesNotExist:
-                    g = NumericGrade(activity=a, member=self.student, flag="CALC")
+        # sum_activities = [
+        #     a
+        #     for a in NumericActivity.objects.filter(offering=self.activity.offering)
+        #     if a.attendance() == "SUM"
+        # ]
+        # if sum_activities:
+        #     total = Attendance.objects.filter(
+        #         activity__offering=self.activity.offering,
+        #         student=self.student,
+        #         status="YES",
+        #     ).count()
+        #     for a in sum_activities:
+        #         try:
+        #             g = NumericGrade.objects.get(activity=a, member=self.student)
+        #             if g.flag not in ["NOGR", "CALC"]:
+        #                 continue
+        #         except NumericGrade.DoesNotExist:
+        #             g = NumericGrade(activity=a, member=self.student, flag="CALC")
 
-                g.value = total
-                g.save(entered_by=self.marker.person)
+        #         g.value = total
+        #         g.save(entered_by=self.marker.person)
 
 
 class AttendanceChange(models.Model):

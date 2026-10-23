@@ -16,6 +16,16 @@ and 16/20 on &ldquo;Assignment 3&rdquo; (&ldquo;A3&rdquo;, worth 15%).
   </ul>
   </dd>
 
+<dt>Attendance Total shortcut</dt>
+  <dd>
+  <p>
+  The <code>[[attendancetotal]]</code> shorthand can be used to count the number of activities where the student was marked present. Each activity gives a grade of 1.
+  </p>
+  <ul class="formula-eg">
+  <li><code>[[attendancetotal]]</code> &rarr; 4</li>
+  </ul>
+  </dd>
+
 <dt>Basic Arithmetic</dt>
   <dd>
   <p>The <code>+</code>, <code>-</code>, <code>*</code>, and <code>/</code> operators are used for basic arithmetic are you might expect.
@@ -40,6 +50,7 @@ and 16/20 on &ldquo;Assignment 3&rdquo; (&ldquo;A3&rdquo;, worth 15%).
 <dt>Activity Properties</dt>
   <dd>
   <p>You can also refer to an activity's maximum grade or percentage by appending <code>.max</code> or <code>.percent</code>.  The <code>.final</code> property of an activity is that activity's contribution to the final percentage grade.  That is for an activity A, <code>[A.final]</code> is a shorthand for <code>[A]/[A.max]*[A.percent]</code>.
+    If attendance taking is enabled for the course, <code>.attendance</code> will give a 1 if the student was marked present, and 0 otherwise.
   </p>
   <ul class="formula-eg">
   <li><code>[Assignment 1.max]</code> &rarr; 15</li>
@@ -47,6 +58,7 @@ and 16/20 on &ldquo;Assignment 3&rdquo; (&ldquo;A3&rdquo;, worth 15%).
   <li><code>[Assignment 1.percent]</code> &rarr; 20</li>
   <li><code>[Assignment 1]/[Assignment 1.max]*[Assignment 1.percent]</code> &rarr; 16</li>
   <li><code>[Assignment 1.final]</code> &rarr; 16</li>
+  <li><code>[Assignment 1.attendance]</code> &rarr; 1</li>
   </ul>
   </dd>
 

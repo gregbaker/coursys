@@ -47,3 +47,6 @@ function insert_percent(act) {
 function insert_final(act) {
   insertAtCaret('id_formula', '['+act+'.final]')
 }
+function insert_attendance(act) {
+  insertAtCaret('id_formula', '['+act+'.attendance]')
+}

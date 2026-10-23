@@ -40,7 +40,7 @@ $(document).ready(function() {
                                         <th scope="col">Name</th>
                                         <th scope="col">Out of</th>
                                         <th scope="col">%</th>
-                                        <th scope="col" colspan="4">Insert</th>
+                                        <th scope="col" colspan="{% if course.attendance %}5{% else %}4{% endif %}">Insert</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -57,6 +57,9 @@ $(document).ready(function() {
                                         <td><a href="javascript:insert_max('{{numeric_activity.short_name|escapejs}}')" title="the maximum grade for {{numeric_activity.name}} (currently {{numeric_activity.max_grade}})">{{numeric_activity.short_name}} out of</a></td>
                                         <td><a href="javascript:insert_percent('{{numeric_activity.short_name|escapejs}}')" title="the &quot;percent&quot; for {{numeric_activity.name}} (currently {{numeric_activity.percent}})">{{numeric_activity.short_name}} percent</a></td>
                                         <td><a href="javascript:insert_final('{{numeric_activity.short_name|escapejs}}')" title="the student's final grade contribution for {{numeric_activity.name}} (their grade / max * percent)">{{numeric_activity.short_name}} final</a></td>
+                                        {% if course.attendance %}
+                                        <td><a href="javascript:insert_attendance('{{numeric_activity.short_name|escapejs}}')" title="the student's attendance mark for {{numeric_activity.name}} (either 0 or 1)">{{numeric_activity.short_name}} attendance</a></td>
+                                        {% endif %}
                                     </tr>
                                     {% empty %}
                                     <tr>
