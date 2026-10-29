@@ -4,11 +4,11 @@
             hx-post="{% url "offering:attendance:set" course_slug=offering.slug activity_slug=activity.slug userid=userid %}"
             hx-vals='{"status": "YES"}'
             hx-target="#buttons-{{ userid }}"
-            title="Mark present">Present</button>
+            title="Mark present">{% if status == 'YES' %}<i class="fa-solid fa-circle-check"></i> {% endif %}Present</button>
     <button type="button" 
             class="btn {% if status == 'NO' %}active{% else %}inactive{% endif %}"
             hx-post="{% url "offering:attendance:set" course_slug=offering.slug activity_slug=activity.slug userid=userid %}"
             hx-vals='{"status": "NO"}'
             hx-target="#buttons-{{ userid }}"
-            title="Mark absent">Absent</button>
+            title="Mark absent">{% if status != 'YES' %}<i class="fa-solid fa-circle-xmark"></i> {% endif %}Absent</button>
 </div>

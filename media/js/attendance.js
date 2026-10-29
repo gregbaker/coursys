@@ -1,14 +1,17 @@
 function attendance_update() {
-    fetch(refresh_url)
-    .then(response => response.json())
-    .then(data => {
-        for ( const sid in data ) {
-            htmx.swap(sid, data[sid], { swapStyle: 'outerHTML' });
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    });
+    // update attendance buttons (in case of concurrent updates) if the window is actually visible to the user
+    if (document.visibilityState == "visible") {
+        fetch(refresh_url)
+        .then(response => response.json())
+        .then(data => {
+            for ( const sid in data ) {
+                htmx.swap(sid, data[sid], { swapStyle: 'outerHTML' });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
 }
 function attendance_ready() {
     document.body.addEventListener("showSaved", function(e){

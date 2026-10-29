@@ -98,15 +98,15 @@ def refresh(request: HttpRequest, course_slug: str, activity_slug: str) -> HttpR
     students = Member.objects.filter(offering=offering, role="STUD").select_related(
         "person"
     )
-    student_data = [
+    student_data = (
         (
             s,
             attendance_dict.get(
-                s.person.userid, Attendance(student=s, activity=activity)
+                s.person.userid, Attendance(student=s, activity=activity, status="NO")
             ),
         )
         for s in students
-    ]
+    )
     htmx_data = {
         f"#buttons-{s.person.userid}": loader.render_to_string(
             "attendance/_buttons.html",

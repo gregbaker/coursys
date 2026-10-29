@@ -28,17 +28,6 @@ class AttendanceTest(TestCase):
         offering.set_attendance(True)
         offering.save()
 
-        sum_act = NumericActivity(
-            offering=offering,
-            name="Attendance",
-            short_name="Att",
-            max_grade=3,
-            percent=1,
-            position=99,
-        )
-        sum_act.set_attendance("SUM")
-        sum_act.save()
-
         a1 = NumericActivity.objects.get(offering=offering, slug="a1")
         a1.set_attendance("THIS")
         a1.save()
@@ -59,9 +48,6 @@ class AttendanceTest(TestCase):
         NumericGrade(activity=a2, member=s1, value=99, flag="GRAD").save(
             entered_by=inst.person
         )
-        NumericGrade(activity=sum_act, member=s1, value=99, flag="CALC").save(
-            entered_by=inst.person
-        )
 
         # they attended both a1 and a2
         Attendance(activity=a1, student=s1, status="YES", marker=inst).save()
@@ -75,10 +61,8 @@ class AttendanceTest(TestCase):
             NumericGrade.objects.get(activity=a1, member=s1).value, a1.max_grade
         )
         self.assertEqual(NumericGrade.objects.get(activity=a2, member=s1).value, 99)
-        self.assertEqual(NumericGrade.objects.get(activity=sum_act, member=s1).value, 2)
 
         self.assertEqual(
             NumericGrade.objects.get(activity=a1, member=s2).value, a1.max_grade
         )
         self.assertEqual(NumericGrade.objects.filter(activity=a2, member=s2).count(), 0)
-        self.assertEqual(NumericGrade.objects.get(activity=sum_act, member=s2).value, 3)

@@ -51,8 +51,9 @@ class Attendance(models.Model):
                     g = NumericGrade(
                         activity=numeric_activity, member=self.student, flag="GRAD"
                     )
-                if g.flag == "GRAD":
+                if g.flag in ["GRAD", "NOGR"]:  # don't update if exclused/dishonesty
                     g.value = numeric_activity.max_grade if self.status == "YES" else 0
+                    g.flag = "GRAD"
                     g.save(entered_by=self.marker.person)
 
         except NumericActivity.DoesNotExist:
