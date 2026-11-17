@@ -16,6 +16,7 @@ from grades.urls import offering_patterns
 from ra.urls import ra_patterns
 from reports.urls import report_patterns
 from ta.urls import ta_patterns, tug_patterns
+from postdoc.urls import postdoc_patterns
 from tacontracts.urls import tacontract_patterns
 from visas.urls import visas_pattern
 from outreach.urls import outreach_pattern
@@ -24,6 +25,7 @@ from inventory.urls import inventory_pattern
 from relationships.urls import relationship_patterns
 from space.urls import space_patterns
 from reminders.urls import reminders_patterns
+from system.urls import system_patterns
 
 import dashboard.views as dashboard_views
 import grad.views as grad_views
@@ -40,7 +42,7 @@ toplevel_patterns = [
     url(r'^favicon.ico$', RedirectView.as_view(url=settings.STATIC_URL + 'icons/favicon.ico', permanent=True)),
     url(r'^csp-reports', csp_report_view, name='csp_reports'),
     url(r'^mossicon/(?P<filename>.*)$', moss_icon, name='moss_icon'),
-    url(r'^frontend-check$', dashboard_views.frontend_check, name='frontend_check'),
+    url(r'^healthcheck$', dashboard_views.healthcheck, name='healthcheck'),
 
     # top-level pages
     url(r'^$', dashboard_views.index, name='index'),
@@ -82,7 +84,7 @@ urlpatterns = [
     url(r'^inventory/', include((inventory_pattern, 'inventory'), namespace='inventory')),
     url(r'^space/', include((space_patterns, 'space'), namespace='space')),
     url(r'^reminders/', include((reminders_patterns, 'reminders'), namespace='reminders')),
-
+    url(r'^system/', include((system_patterns, 'system'), namespace='system')),
 
     # graduate student-related apps
     url(r'^grad/', include((grad_patterns, 'grad'), namespace='grad')),
@@ -90,6 +92,7 @@ urlpatterns = [
     url(r'^ta/', include((ta_patterns, 'ta'), namespace='ta')),
     url(r'^tacontracts/', include((tacontract_patterns, 'tacontracts'), namespace='tacontracts')),
     url(r'^tugs/', include((tug_patterns, 'tugs'), namespace='tugs')),
+    url(r'^postdoc/', include((postdoc_patterns, 'postdoc'), namespace='postdoc')),
 
 
     # redirect old mobile URLs to rightful locations

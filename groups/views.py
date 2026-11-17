@@ -246,8 +246,6 @@ def group_data(request, course_slug):
             continue
         response.write('%s: ' % (g.slug))
         response.write(','.join(userids))
-        if offering.uses_svn():
-            response.write('; ' + g.svn_url())
         response.write('\n')
 
     return response
@@ -556,7 +554,7 @@ def invite(request, course_slug, group_slug):
                 for invitorMembership in GroupMember.objects.filter(group = group, student = invitor):
                     newGroupMember = GroupMember(group = group, student = member,
                                           activity = invitorMembership.activity, confirmed = False)
-                    newGroupMember.save(member.person)
+                    newGroupMember.save()
 
                     #LOG EVENT#
                     l = LogEntry(userid=request.user.username,

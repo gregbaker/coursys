@@ -1,3 +1,5 @@
+from typing import Optional, Tuple
+
 from coredata.models import Person, Semester, SemesterWeek, CourseOffering
 from django.conf import settings
 from django.core.mail import mail_admins
@@ -8,6 +10,8 @@ import re, hashlib, datetime, string, urllib.request, urllib.parse, urllib.error
 import socket, decimal
 
 
+EMAIL_IMPORT_THRESHOLD = 3600*24*30 # import preferred email even more infrequently than name
+VALID_EMAIL = re.compile(r'[^@]+@[^@]+\.[^@]+')  # reasonably email-like string, from https://stackoverflow.com/a/8022584
 multiple_breaks = re.compile(r'\n\n+')
 
 
@@ -22,16 +26,16 @@ class DBConn(object):
     Should only be created on-demand (in function) to minimize startup for other processes.
     """
     _instance = None
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(DBConn, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, verbose=False):
-        self.conn, self.db = self.get_connection()
+    def __init__(self, verbose: bool = False, throw_raw: bool = False):
+        self.conn, self.db = self.get_connection(throw_raw=throw_raw)
         self.verbose = verbose
 
-    def get_connection(self):
+    def get_connection(self, throw_raw: bool = False):
         raise NotImplementedError
     def escape_arg(self, a):
         raise NotImplementedError
@@ -69,7 +73,7 @@ class DBConn(object):
 
 
 class SIMSConnMSSQL(DBConn):
-    def get_connection(self):
+    def get_connection(self, throw_raw: bool = False):
         if settings.DISABLE_REPORTING_DB:
             raise SIMSProblem("Reporting database access has been disabled in this deployment.")
 
@@ -78,7 +82,10 @@ class SIMSConnMSSQL(DBConn):
             dbconn = pyodbc.connect("DRIVER={FreeTDS};SERVER=%s;PORT=1433;DATABASE=%s;Trusted_Connection=Yes"
                                     % (settings.SIMS_DB_SERVER, settings.SIMS_DB_NAME))
         except (pyodbc.ProgrammingError, pyodbc.OperationalError):
-            raise SIMSProblem("Unable to connect to reporting database.")
+            if throw_raw:
+                raise
+            else:
+                raise SIMSProblem("Unable to connect to reporting database.")
         cursor = dbconn.cursor()
         return dbconn, cursor
 
@@ -149,64 +156,6 @@ class SIMSConnMSSQL(DBConn):
             return v
 
 
-class SIMSConnDB2(DBConn):
-    """
-    Singleton object representing SIMS DB connection
-    """
-    DatabaseError = ReferenceError # placeholder until we have the DB2 module
-    DB2Error = ReferenceError
-
-    def get_connection(self):
-        if settings.DISABLE_REPORTING_DB:
-            raise SIMSProblem("Reporting database access has been disabled in this deployment.")
-
-        try:
-            import ibm_db_dbi
-        except ImportError:
-            raise SIMSProblem("could not import DB2 module")
-        SIMSConnDB2.DatabaseError = ibm_db_dbi.DatabaseError
-        SIMSConnDB2.DB2Error = ibm_db_dbi.Error
-        try:
-            dbconn = ibm_db_dbi.connect(self.sims_db, self.sims_user, self.sims_passwd)
-        except ibm_db_dbi.Error:
-            raise #SIMSProblem("Could not communicate with reporting database.")
-        cursor = dbconn.cursor()
-        cursor.execute("SET SCHEMA "+self.schema)
-        return dbconn, cursor
-
-    def escape_arg(self, a):
-        """
-        Escape argument for DB2
-        """
-        # Based on description of PHP's db2_escape_string
-        if type(a) in (int,int):
-            return str(a)
-        if type(a) in (tuple, list, set):
-            return '(' + ', '.join((self.escape_arg(v) for v in a)) + ')'
-        
-        # assume it's a string if we don't know any better
-        a = str(a)
-        a = a.replace("\\", "\\\\")
-        a = a.replace("'", "\\'")
-        a = a.replace('"', '\\"')
-        a = a.replace("\r", "\\r")
-        a = a.replace("\n", "\\n")
-        a = a.replace("\x00", "\\\x00")
-        a = a.replace("\x1a", "\\\x1a")
-        return "'" + a + "'"
-
-    def prep_value(self, v):
-        """
-        get DB2 value into a useful format
-        """
-        if isinstance(v, str):
-            return v.strip()
-        elif isinstance(v, decimal.Decimal):
-            return float(v)
-        else:
-            return v
-
-
 class SIMSProblem(Exception):
     """
     Class used to pass back problems with the SIMS connection.
@@ -235,27 +184,6 @@ def SIMS_problem_handler_MSSQL(func):
     return wrapped
 
 
-def SIMS_problem_handler_DB2(func):
-    """
-    Decorator to deal somewhat gracefully with any SIMS database problems.
-    Any decorated function may raise a SIMSProblem instance to indicate a
-    problem with the database connection.
-
-    Should be applied to any functions that use a SIMSConn object.
-    """
-    def wrapped(*args, **kwargs):
-        # check for the types of errors we know might happen and return an error message in a SIMSProblem
-        try:
-            return func(*args, **kwargs)
-        except SIMSConn.DatabaseError as e:
-            raise SIMSProblem("could not connect to reporting database")
-        except SIMSConn.DB2Error as e:
-            raise SIMSProblem("problem with connection to reporting database")
-
-    wrapped.__name__ = func.__name__
-    return wrapped
-
-
 SIMSConn = SIMSConnMSSQL
 SIMS_problem_handler = SIMS_problem_handler_MSSQL
 
@@ -268,7 +196,7 @@ def _args_to_key(args, kwargs):
     return h.hexdigest()
 
 
-def cache_by_args(func, seconds=38800): # 8 hours by default
+def cache_by_args(func, seconds=3600): # 1 hour by default
     """
     Decorator to cache query results from SIMS (if successful: no SIMSProblem).
     Requires arguments that can be converted to strings that uniquely identifies the results.
@@ -380,9 +308,9 @@ def add_person(emplid, commit=True, external_email=False):
     return p
 
 
-@cache_by_args
-def get_person_by_userid(userid):
-    return ensure_person_from_userid(userid)
+# @cache_by_args
+# def get_person_by_userid(userid):
+#     return ensure_person_from_userid(userid)
 
 
 @cache_by_args
@@ -468,6 +396,20 @@ def more_personal_info(emplid, needed=ALLFIELDS, exclude=[]):
     
     needed is a list containing the values needed in the result (if available), or ALLFIELDS
     """
+    if settings.DISABLE_REPORTING_DB and settings.DEPLOY_MODE != 'production':
+        # let us test *something* without full CSRPT access
+        time.sleep(2)
+        return {
+            "phones": { "home": "778-555-5555", "cell": "778-555-5556" },
+            "addresses": { "home": "123 Fake St\nBurnaby, BC" },
+            "citizen": "probably",
+            "visa": "yup",
+            "gender": "U",
+            "programs": ["CMPTMAJ", "MATHMIN"],
+            "gpa": 3.67,
+            "ccredits": 45,
+        }
+    
     db = SIMSConn()
     data = {}
     
@@ -561,8 +503,6 @@ def more_personal_info(emplid, needed=ALLFIELDS, exclude=[]):
             label = transcript or descr
             prog = "%s (%s subplan)" % (label, subplan)
             programs.append(prog)
-
-
 
     # GPA and credit count
     if (needed == ALLFIELDS or 'gpa' in needed or 'ccredits' in needed) and 'ccredits' not in exclude:
@@ -758,10 +698,28 @@ def get_semester_names():
     
 @cache_by_args
 @SIMS_problem_handler
-def course_data(emplid, needed=ALLFIELDS, exclude=[]):
+def course_data(emplid):
     """
     Get course and GPA info for light transcript display
     """
+    if settings.DISABLE_REPORTING_DB and settings.DEPLOY_MODE != 'production':
+        # let us test *something* without full CSRPT access
+        time.sleep(2)
+        return {
+            "transfers": [
+                { "crse_id": "001234", "grade": "A-", "units": 0.0, "repeat": "", "strm": "1227", "subject": "CHEM", "catalog_nbr": "X12", "descr": "BC High Chemistry 12", "crse_found": True, "req": "", "src": "Some high school" },
+                { "crse_id": "014952", "grade": "TR", "units": 0.0, "repeat": "", "strm": "1231", "subject": "FAL", "catalog_nbr": "X99", "descr": "Transfer Credit Only", "crse_found": True, "req": "", "src": "Some high school" },
+            ],
+            "semesters": [
+                { "semname": "2024 Fall", "strm": "1247", "career": "UGRD", "units_passed": 12.0, "tgpa": 3.33, "cgpa": 3.33, "standing": "GAS", "udgpa": 0.0, "courses": [
+                    { "strm": "1247", "class_nbr": 6206, "unit_taken": 3.0, "repeat": "", "grade": "B+", "subject": "CMPT", "number": "105W", "descr": "Soc. Issues & Cmns. Strategies", "req": "W" },
+                    { "strm": "1247", "class_nbr": 6210, "unit_taken": 3.0, "repeat": "", "grade": "B+",  "subject": "CMPT", "number": "125", "descr": "Intro.Cmpt.Sci/Programming II", "req": "Q" },
+                ]},
+            ],
+            "refresh": (datetime.datetime.now() - datetime.timedelta(hours=2)).isoformat()
+            #"refresh": 'unknown'
+        }
+    
     data = {}
     emplid = str(emplid)
     req_map = get_reqmnt_designtn()
@@ -787,7 +745,6 @@ def course_data(emplid, needed=ALLFIELDS, exclude=[]):
         
         rdata.update(crse_id_info(crse_id))
         if not rdata['crse_found']:
-            #print rdata
             continue
 
         if rdata['reqdes']:
@@ -832,7 +789,6 @@ def course_data(emplid, needed=ALLFIELDS, exclude=[]):
         rdata['semname'] = sem_name[strm]
         semesters.append(rdata)
         semester_lookup[strm] = rdata
-        
     
     # courses
     enrl_query = "SELECT E.STRM, E.CLASS_NBR, E.UNT_TAKEN, " \
@@ -856,6 +812,16 @@ def course_data(emplid, needed=ALLFIELDS, exclude=[]):
         del rdata['reqdes']
         if strm in semester_lookup:
             semester_lookup[strm]['courses'].append(rdata)
+
+    # freshness
+    db.execute("""SELECT SFU_CLONE_DTTM FROM PS_SFU_CLONE_INFO""", ())
+    row = db.fetchone()
+    data['refresh'] = 'unknown'
+    if row:
+        try:
+            data['refresh'] = row[0].isoformat()
+        except:
+            pass
     
     return data
 
@@ -1481,7 +1447,11 @@ def csrpt_update():
     """
     import pyodbc
     data = []
-    db = SIMSConn()
+    try:
+        db = SIMSConn(throw_raw=True)
+    except Exception as e:
+        return [('Unable to connect', str(e))]
+
     this_sem = Semester.current()
 
     try:
@@ -1557,16 +1527,16 @@ def outlines_data_json(offering):
 
 ##############################################################################
 # Emplid -> Userid APIs
+# Help for the API: the "Identity" team in ITS.
 
 EMPLID_SECRET = settings.EMPLID_API_SECRET
-EMPLID_BASE_URL = 'https://rest.its.sfu.ca/cgi-bin/WebObjects/AOBRestServer.woa/rest/datastore2/global.json?'
+EMPLID_BASE_URL = 'https://rest.its.sfu.ca/cgi-bin/WebObjects/AOBRestServer.woa/rest/datastore2/global/accountInfo.json?'
 USERID_BASE_URL = 'https://rest.its.sfu.ca/cgi-bin/WebObjects/AOBRestServer.woa/rest/amaint/username/username.json?'
 
-def userid_to_emplid(userid):
-    """
-    Fetch emplid from ITS API for userid -> emplid mapping.
 
-    Admin contact for the API is George Lee in the Learning & Community Platforms Group
+def userid_to_emplid_and_email(userid: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Fetch emplid and preferred email address from ITS API for userid -> emplid mapping.
     """
     qs = urllib.parse.urlencode({'art': EMPLID_SECRET, 'username': userid})
     url = EMPLID_BASE_URL + qs
@@ -1577,21 +1547,24 @@ def userid_to_emplid(userid):
         data = json.loads(jsondata)
     except ValueError:
         # can't decode JSON
-        return None
+        return None, None
     except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, socket.timeout, socket.error):
         # network problem, or 404 (if userid doesn't exist)
-        return None
+        return None, None
 
-    if 'sfuid' not in data:
-        return None
+    return data.get('sfuid'), data.get('preferredEmail')
 
-    return data['sfuid']
+
+def userid_to_emplid(userid):
+    """
+    Fetch emplid from ITS API for userid -> emplid mapping.
+    """
+    return userid_to_emplid_and_email(userid)[0]
+
 
 def emplid_to_userid(emplid):
     """
     Fetch userid from ITS API for emplid -> userid mapping.
-
-    Admin contact for the API is George Lee in the Learning & Community Platforms Group
     """
     qs = urllib.parse.urlencode({'art': EMPLID_SECRET, 'sfuid': str(emplid)})
     url = USERID_BASE_URL + qs
@@ -1649,7 +1622,7 @@ def build_person(emplid, userid=None, commit=True):
     return import_person(p, commit=commit)
 
 
-def import_person(p, commit=True, grad_data=False):
+def import_person(p: Person, commit=True, grad_data=False) -> Optional[Person]:
     """
     Import SIMS (+ userid) information about this Person. Return the Person or None if they can't be found.
     """
@@ -1678,17 +1651,32 @@ def import_person(p, commit=True, grad_data=False):
 
     # don't deactivate userids that have been deactivated by the University
     if userid:
-        ## but freak out if a userid changes
+        # but warn if a userid changes
         if p.userid and p.userid != userid:
-            mail_admins('userid change', "Somebody's userid changed: %s became %s." % (p.userid, userid))
+            mail_admins(subject='userid change', message="Somebody's userid changed: %s became %s." % (p.userid, userid))
         p.userid = userid
 
-    # also get preferred email if it's not the standard campus one
-    email = get_preferred_email(p.emplid, p.userid)
-    if email is not None:
-        p.config['email'] = email
-    elif 'email' in p.config:
-        del p.config['email']
+    now = time.time()
+    email_import_age = now - p.config.get('lastemailimport', 0)
+
+    if userid and email_import_age > EMAIL_IMPORT_THRESHOLD:
+        emplid, email = userid_to_emplid_and_email(userid)
+        if emplid and email and VALID_EMAIL.fullmatch(email) and email.endswith('sfu.ca'):
+            assert str(emplid) == str(p.emplid)
+            if email != f'{p.userid}@sfu.ca':
+                p.config['email_tmp'] = email
+            elif 'email_tmp' in p.config:
+                # we default to userid@sfu.ca, so don't store that
+                del p.config['email_tmp']
+            p.config['lastemailimport'] = int(now)
+
+        elif 'email_tmp' in p.config:
+            # no response on their email: revert to the safe userid@sfu.ca option
+            del p.config['email_tmp']
+
+        # TODO: when switching this on, purge the temp import values
+        # if 'email_tmp' in p.config:
+        #     del p.config['email_tmp']
 
     if grad_data:
         data = grad_student_info(p.emplid)

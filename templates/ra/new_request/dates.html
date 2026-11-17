@@ -17,10 +17,10 @@
     {% if draft %}
       Draft for {{ name }}
     {% else %}
-      Update RA {{ status }} for {{ name }}
+      Update {{ status }} for {{ name }}
     {% endif %}
   {% else %}
-    New RA Request
+    New Appointment Request
   {% endif %}
 {% endblock %}
 
@@ -29,10 +29,10 @@
     {% if draft %}
       Draft for {{ name }}
     {% else %}
-      Update RA {{ status }} for {{ name }}
+      Update {{ status }} for {{ name }}
     {% endif %}
   {% else %}
-    New RA Request
+    New Appointment Request
   {% endif %}
 {% endblock %}
 
@@ -46,11 +46,11 @@
     {% if draft %}
       <li>Draft for {{ name }}</li>
     {% else %}
-      <li><a href="{% url "ra:view_request" ra_slug=slug %}">View RA {{ status }} for {{ name }}</a></li>
-      <li>Edit RA {{ status }} for {{ name }}</li>
+      <li><a href="{% url "ra:view_request" ra_slug=slug %}">View {{ get_hiring_category_title }} {{ status }} for {{ name }}</a></li>
+      <li>Edit {{ status }} for {{ name }}</li>
     {% endif %}
   {% else %}
-    <li>New RA Request</li>
+    <li>New Appointment Request</li>
   {% endif %}
 {% endblock %}
 
@@ -89,12 +89,17 @@
         </div>
       </div>
     </fieldset>
+    {% if research_assistant %}
+    <div class="important_info helptext">
+      <span style="color:red;"><b>Important Information from Labour Relations and Human Resources:</b></span> Appointment letters are required to be issued prior to the commencement of all appointments and where possible, at least one (1) week in advance. Employment offers should never be retroactive. RA’s are expected to sign their appointment letter prior to commencing their appointment. Payroll Appointment Forms (PAFs) are required to be sent to HR’s Research People Team who will process the paperwork to generate appointment letters and set up payroll. The HR submission cut-off schedule is posted <a href="https://www.sfu.ca/human-resources/forms-resources/payroll-schedule.html">here</a>.
+    </div>
+    {% endif %}
     <div class="directory_buttons">
         <h3>Section {{ wizard.steps.step1 }} of {{ wizard.steps.count }}</h3>
         <button id="prev" name="wizard_goto_step" class="btn" type="submit" value="{{ wizard.steps.prev }}" formnovalidate>{% trans "Previous" %}</button>
         <input id="save" type="submit" class="submit" value="Next"/>
         {% if draft or draft_option %}
-        <input id="done_draft" name="save_draft" type="submit" class="submit confirm-submit" value="Save Up to This Page as Draft" data-submit-action="safe draft up to this point"/>
+        <input id="done_draft" name="save_draft" type="submit" class="submit confirm-submit" value="Save Up to This Page as Draft" data-submit-action="save your draft up to this point"/>
         {% endif %}
     </div>
   </form>  

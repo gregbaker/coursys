@@ -12,6 +12,7 @@ In `courses/localsettings.py`, ask for Celery:
 ```
 USE_CELERY = True
 RABBITMQ_USER = 'guest'
+RABBITMQ_PASSWORD = 'guest'
 RABBITMQ_HOSTPORT = 'localhost:5672'
 RABBITMQ_VHOST = '/'
 ```
@@ -21,16 +22,11 @@ Celery (as we have configured it) uses AMQP implementation [RabbitMQ](https://ww
 apt-get install rabbitmq-server
 ```
 
-Then in `courses/secrets.py`:
-```
-RABBITMQ_PASSWORD = 'guest'
-```
-
 ## RabbitMQ Docker
 
 RabbitMQ can be started in a Docker container for development like:
 ```
-docker run -d --hostname rabbitmq --name rabbitmq -p 5672:5672 rabbitmq:latest
+docker run -d --hostname rabbitmq --name rabbitmq -p 5672:5672 rabbitmq:3
 # ...
 docker container stop rabbitmq
 docker container rm rabbitmq

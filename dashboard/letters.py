@@ -24,7 +24,6 @@ from coredata.models import Semester, Person
 from grad.models import STATUS_APPLICANT
 from courselib.branding import product_name
 from ra.forms import CS_CONTACT, ENSC_CONTACT, SEE_CONTACT, MSE_CONTACT, FAS_CONTACT
-import iso8601;
 from textwrap import wrap
 
 PAPER_SIZE = letter
@@ -516,7 +515,7 @@ class FASLetterheadTemplate(FASLetterPageTemplate):
     def __init__(self, *args, **kwargs):
         FASLetterPageTemplate.__init__(self, *args, **kwargs)
         self.faculty = "FACULTY OF APPLIED SCIENCES"
-        self.address = ['Applied Science Building 9861', '8888 University Drive', 'Burnaby, B.C. Canada V5A 1S6']
+        self.address = ['Applied Sciences Building, ASB 10700', '8888 University Drive', 'Burnaby, B.C. Canada V5A 1S6']
         self.tel = "+1 778 782 4724"
         self.fax = "+1 778 782 5802"
         self.web = "www.sfu.ca/fas"
@@ -775,6 +774,7 @@ class RARequestForm(SFUMediaMixin):
         gras_ls = graduate_research_assistant and (self.ra.gras_payment_method=="LE" or self.ra.gras_payment_method=="LS")
         gras_bw = graduate_research_assistant and self.ra.gras_payment_method=="BW"
         ra_hourly = research_assistant and self.ra.ra_payment_method=="H"
+        ra_hourly_usra = research_assistant and self.ra.ra_payment_method=="H" and self.ra.usra
         ra_bw = research_assistant and self.ra.ra_payment_method=="BW"
         ra_ls = research_assistant and self.ra.ra_payment_method=="LS"
         nc_hourly = non_continuing and self.ra.nc_payment_method=="H"
@@ -794,6 +794,13 @@ class RARequestForm(SFUMediaMixin):
             biweekly = "$%.2f" % (self.ra.biweekly_salary)
             biweekhours_hourly = ''
             biweekhours_bw = ''
+            lumpsum = ''
+            lumphours = ''
+        elif ra_hourly_usra:
+            hourly = ''
+            biweekly = "%.2f" % self.ra.get_biweekly_salary()
+            biweekhours_hourly = ''
+            biweekhours_bw = "%.2f" % self.ra.biweekly_hours
             lumpsum = ''
             lumphours = ''
         elif ra_hourly:
@@ -912,6 +919,10 @@ class RARequestForm(SFUMediaMixin):
             init_comment = "Lump sum funding amount $" + str(self.ra.total_pay) + ". "
         elif gras_bw:
             init_comment = "Total funding amount $" + str(self.ra.total_pay) + " over " + str(self.ra.pay_periods) + " pay periods. "
+        elif ra_hourly_usra:
+            init_comment = ("For total pay $" + str(self.ra.total_pay) + " over " + str(self.ra.pay_periods) + " pay periods (hourly $" + str(self.ra.gross_hourly) 
+                            + " for " + str(self.ra.biweekly_hours) + " hours bi-weekly, salary total $" + f"{self.ra.get_base_pay():.2f}" 
+                            + " plus " + str(self.ra.vacation_pay) + "% vacation pay). Timesheet is not required. ")
         elif ra_hourly or nc_hourly:
             init_comment = "Expected " + str(self.ra.biweekly_hours) + " hours bi-weekly over " + str(self.ra.pay_periods) + " pay periods plus " + str(self.ra.vacation_pay) + "% vacation pay, total pay $" + str(self.ra.total_pay) + ". "
         elif ra_bw or nc_bw:
@@ -919,6 +930,9 @@ class RARequestForm(SFUMediaMixin):
         else:
             init_comment = ""
         
+        if research_assistant and self.ra.usra:
+            init_comment += "All USRA appointment funding cost (salary plus mandatory benefits) is derived by: $6000 award + faculty supplement. "
+
         post_comment = ""
         if non_continuing:
             post_comment += "Supervisor: " + str(self.ra.supervisor.name()) + " / Grant signing authority:" 
@@ -1196,6 +1210,7 @@ class RARequestForm(SFUMediaMixin):
         self.c.drawString(10.6*mm, -8*mm, "Contact Email:")
 
         email = None
+        name = None
         unit = self.ra.unit.label
         if graduate_research_assistant:
             if unit == "CMPT":
@@ -1206,6 +1221,7 @@ class RARequestForm(SFUMediaMixin):
                 email = ENSC_CONTACT
             elif unit == "SEE":
                 email = SEE_CONTACT
+                name = "Manager, Operations & Administrative Services"
             elif unit == "APSC":
                 email = FAS_CONTACT
         elif research_assistant or non_continuing:
@@ -1214,7 +1230,10 @@ class RARequestForm(SFUMediaMixin):
         self._box_entry(32*mm, 22*mm, 60*mm, 6*mm, content='')
         self._box_entry(32*mm, 14*mm, 60*mm, 6*mm, content='')
         self._box_entry(32*mm, 6*mm, 40*mm, 6*mm, content='')
-        self._box_entry(32*mm, -2*mm, 60*mm, 6*mm, content=email)
+        if name:
+            self._box_entry(32*mm, -2*mm, 75*mm, 6*mm, content=name)
+        else:
+            self._box_entry(32*mm, -2*mm, 60*mm, 6*mm, content=email)
         self._box_entry(32*mm, -10*mm, 60*mm, 6*mm, content=email)
 
         self.c.setFont("Helvetica", 8)
@@ -1377,7 +1396,7 @@ class RARequestForm(SFUMediaMixin):
             else:
                 f.addFromList(duties, self.c)
 
-        elif graduate_research_assistant and self.ra.get_scholarship_confirmation_complete():
+        elif graduate_research_assistant and self.ra.get_scholarship_confirmation_complete() and self.ra.get_complete():
         # PAGE TWO
             self.c.translate(6*mm, 16*mm) # origin = bottom-left of the content
             self.c.setFillColor(self.sfu_red)

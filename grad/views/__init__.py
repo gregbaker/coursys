@@ -1,5 +1,5 @@
 from .config import reports, config
-from .active_students import active_students
+from .active_students import active_students, download_active_students
 from .quick_search import quick_search
 from .not_found import not_found
 from .supervisor_index import supervisor_index, download_my_grads_csv
@@ -31,7 +31,6 @@ from .edit_program import edit_program
 from .programs import programs
 from .requirements import requirements, toggle_requirement
 from .new_requirement import new_requirement
-#from import_applic import import_applic
 from .progress_reports import progress_reports
 from .letter_templates import letter_templates
 from .new_letter_template import new_letter_template

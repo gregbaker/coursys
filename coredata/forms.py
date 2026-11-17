@@ -6,7 +6,7 @@ from coredata.queries import find_person, add_person, SIMSProblem, userid_to_emp
 from cache_utils.decorators import cached
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from django.utils.encoding import force_text
+from django.utils.encoding import force_str
 from coredata.widgets import CalendarWidget
 
 
@@ -25,7 +25,7 @@ class CAPhoneNumberField(forms.Field):
         super(CAPhoneNumberField, self).clean(value)
         if value in EMPTY_VALUES:
             return ''
-        value = re.sub(r'(\(|\)|\s+)', '', force_text(value))
+        value = re.sub(r'(\(|\)|\s+)', '', force_str(value))
         m = phone_digits_re.search(value)
         if m:
             return '%s-%s-%s' % (m.group(1), m.group(2), m.group(3))
@@ -78,7 +78,7 @@ class CourseField(forms.ModelChoiceField):
 class UnitForm(forms.ModelForm):
     class Meta:
         model = Unit
-        exclude = ('config',)
+        exclude = ()
         widgets = {
                    'label': forms.TextInput(attrs={'size': 5, 'autofocus': True}),
                    'name': forms.TextInput(attrs={'size': 40}),
@@ -160,7 +160,7 @@ class PersonWidget(forms.TextInput):
             confirmwidget = ' Import %s %s (%s) from SIMS: ' % (self.sims_data['first_name'], self.sims_data['last_name'], self.sims_data['emplid'])
             confirmwidget += '<input type="checkbox" name="%s_confirm" />' % (name)
             confirmwidget += '<input type="hidden" name="%s_emplid" value="%s" />' % (name, self.sims_data['emplid'])
-            return textwidget + confirmwidget
+            return mark_safe(textwidget + confirmwidget)
         else:
             return super(PersonWidget, self).render(name, value, attrs=attrs, renderer=renderer)
 
@@ -431,7 +431,7 @@ class UnitAddressForm(forms.Form):
                             widget=forms.TextInput(attrs={'size': 12}))
     fax = CAPhoneNumberField(required=False, label="Fax Number", help_text='Fax number for the department',
                             widget=forms.TextInput(attrs={'size': 12}))
-    web = forms.URLField(required=True, label="Web", help_text="URL of the department's web site")
+    web = forms.URLField(required=True, label="Web", assume_scheme='https', help_text="URL of the department's web site")
     email = forms.EmailField(required=False, label="Email", help_text='General contact email for the department')
     deptid = forms.CharField(required=False, label="Dept ID",
                                widget=forms.TextInput(attrs={'size': 5}),
@@ -647,7 +647,7 @@ class TemporaryPersonForm(forms.Form):
                     help_text='SIN number')
 
 class CourseHomePageForm(forms.Form):
-    url = forms.URLField(required=True, label="URL", help_text="URL of the course's main web page")
+    url = forms.URLField(required=True, label="URL", assume_scheme='https', help_text="URL of the course's main web page")
     maillist = forms.CharField(required=False, label="Mailing List", help_text="The course mailing list. Leave blank for the default. e.g. \"cmpt-100-bby\".")
 
 
@@ -680,3 +680,9 @@ class RoleAccountForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(RoleAccountForm, self).__init__(*args, **kwargs)
         self.fields['userid'].widget.attrs.update({'autofocus': 'autofocus'})
+
+
+class CSRPTAuthForm(forms.Form):
+    username = forms.CharField(required=True, label="Username", max_length=25)
+    password = forms.CharField(required=True, label="Password", max_length=25,
+                            widget=forms.PasswordInput())

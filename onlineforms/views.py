@@ -35,6 +35,18 @@ import os
 
 UNIVERSITY_UNIT = 'UNIV'
 PRIMARY_FACULTY_UNIT = 'APSC'
+UNDELIVERABLE_DOMAINS = (
+    '@example.com',
+    '@example.net',
+    '@example.org',
+    '@example.edu',
+)
+
+def _is_undeliverable_email(email: str) -> bool:
+    """
+    check if email provided is one we know is undeliverable
+    """
+    return email.lower().endswith(UNDELIVERABLE_DOMAINS)
 #######################################################################
 # Group Management
 
@@ -712,16 +724,25 @@ def new_form(request):
 def view_form(request, form_slug):
     form = get_object_or_404(Form, slug=form_slug, owner__in=request.formgroups)
     sheets = Sheet.objects.filter(form=form, active=True).order_by('order')
-    if request.method == 'POST' and 'action' in request.POST and request.POST['action'] == 'del':
-        sheet_id = request.POST['sheet_id']
-        sheets = Sheet.objects.filter(id=sheet_id, form=form)
-        if sheets:
-            sheet = sheets[0]
-            sheet.delete()
-            messages.success(request, 'Removed the sheet "%s".' % (sheet.title))
-           
-        return HttpResponseRedirect(
-            reverse('onlineforms:view_form', kwargs={'form_slug':form.slug }))
+    if request.method == 'POST' and 'action' in request.POST:
+        if request.POST['action'] == 'del':
+            sheet_id = request.POST['sheet_id']
+            sheets = Sheet.objects.filter(id=sheet_id, form=form)
+            if sheets:
+                sheet = sheets[0]
+                sheet.delete()
+                messages.success(request, 'Removed the sheet "%s".' % (sheet.title))
+            return HttpResponseRedirect(
+                reverse('onlineforms:view_form', kwargs={'form_slug':form.slug }))
+        elif request.POST['action'] == 'revive':
+            form.revive()
+            l = LogEntry(userid=request.user.username,
+                description=("Revived form %s.") % (form,),
+                related_object=form)
+            l.save()
+            messages.success(request, 'Revived the form "%s".' % (form.title))
+            return HttpResponseRedirect(
+                reverse('onlineforms:view_form', kwargs={'form_slug':form.slug }))
 
     form_url = request.build_absolute_uri(reverse('onlineforms:sheet_submission_initial', kwargs={'form_slug': form_slug}))
     context = {'form': form, 'sheets': sheets, 'form_url': form_url}
@@ -1113,7 +1134,7 @@ def formSearchAutocomplete(request, unit_slug=PRIMARY_FACULTY_UNIT):
     unit = Unit.objects.get(label=unit_slug.upper())
     units = Unit.sub_units([unit])
 
-    if request.is_ajax():
+    if 'term' in request.GET:
         q = request.GET.get('term', '').capitalize()
         forms = Form.objects.filter(active=True, unit__in=units).exclude(initiators='NON').order_by('unit__name', 'title')
         forms = forms.filter(Q(title__contains=q) | Q(description__contains=q))
@@ -1541,6 +1562,12 @@ def bulk_close(request, status=None):
                     can_admin = not is_advisor and (form_submission.status == 'PEND' or form_submission.status == 'WAIT')
                     if form_submission and can_admin:
                         admin = Person.objects.get(userid=request.user.username)
+                        waiting_sheets = SheetSubmission.objects.filter(form_submission=form_submission, status='WAIT')
+                        for ss in waiting_sheets:
+                            ss.status = 'REJE'
+                            ss.set_reject_reason('Withdrawn when form was bulk closed by %s.' % (admin.userid))
+                            ss.save()
+                        form_submission.set_notes('')
                         form_submission.set_closer(admin.id)
                         form_submission.status = 'DONE'
                         form_submission.save()
@@ -1805,7 +1832,10 @@ def _sheet_submission(request, form_slug, formsubmit_slug=None, sheet_slug=None,
                     if 'add-nonsfu' in request.POST and sheet.is_initial and owner_form.initiators == "ANY":
                         nonSFUFormFillerForm = NonSFUFormFillerForm(request.POST)
                         if nonSFUFormFillerForm.is_valid():
-                            nonSFUFormFiller = nonSFUFormFillerForm.save()
+                            nonSFUFormFiller = nonSFUFormFillerForm.save(commit=False)
+                            if _is_undeliverable_email(nonSFUFormFiller.email_address):
+                                return HttpResponseRedirect(reverse('onlineforms:sheet_submission_initial', kwargs={'form_slug': form_slug}))
+                            nonSFUFormFiller.save()
                             #LOG EVENT#
                             l = LogEntry(userid=logentry_userid,
                                 description=("Non SFU Form Filler created with email %s to submit form %s") % (nonSFUFormFiller.email_address, owner_form.title),

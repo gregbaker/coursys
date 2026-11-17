@@ -1,4 +1,5 @@
 import datetime
+import json
 
 from django.http import Http404
 from django.shortcuts import render, get_object_or_404
@@ -7,7 +8,7 @@ from django.utils.html import conditional_escape
 from django.utils.safestring import mark_safe
 
 from log.forms import RequestLogForm, EVENT_FORM_TYPES
-from log.models import LogEntry, EVENT_LOG_TYPES, RequestLog, CeleryTaskLog
+from log.models import LogEntry, EVENT_LOG_TYPES, MonitoringDataLog, RequestLog, CeleryTaskLog
 from courselib.auth import requires_global_role
 from courselib.search import get_query
 
@@ -100,6 +101,17 @@ class RequestLogDataJson(BaseDatatableView):
                 d = datetime.timedelta(seconds=secs)
                 qs = qs.filter(duration__gte=d)
 
+        age = GET.get('age[]', 7*24)
+        if age:
+            try:
+                # clamping <= 7 days because the queries are too big in prod
+                hours = min(int(age), 7*24)
+            except ValueError:
+                pass
+            else:
+                cutoff = datetime.datetime.now() - datetime.timedelta(hours=hours)
+                qs = qs.filter(time__gte=cutoff)
+
         method = GET.get('method[]', None)
         if method:
             qs = qs.filter(method=method)
@@ -176,6 +188,30 @@ class CeleryTaskDataJson(BaseDatatableView):
             elif exception == 'NO':
                 qs = qs.exclude(data__has_key='exception')
 
+        exclude_ping = GET.get('exclude_ping[]', False)
+        if exclude_ping:
+            qs = qs.exclude(task='coredata.tasks.ping')
+
+        exclude_beat_test = GET.get('exclude_beat_test[]', False)
+        if exclude_beat_test:
+            qs = qs.exclude(task='coredata.tasks.beat_test')
+
+        return qs
+
+
+class MonitoringDataJson(BaseDatatableView):
+    model = MonitoringDataLog
+    max_display_length = 500
+    columns = MonitoringDataLog.display_columns
+
+    def filter_queryset(self, qs):
+        # use request parameters to filter queryset
+        GET = self.request.GET
+        metric = GET.get('metric[]', None)
+
+        if metric:
+            qs = qs.filter(metric__contains=metric)
+        
         return qs
 
 
@@ -186,6 +222,7 @@ def _log_data(log_type, request):
 EVENT_DATA_VIEWS = {
     'request': RequestLogDataJson,
     'task': CeleryTaskDataJson,
+    'monitoring': MonitoringDataJson,
 }
 
 
@@ -212,3 +249,20 @@ def log_view(request, log_type: str, log_id: str):
         'display_data': display_data,
     }
     return render(request, 'log/log_view.html', context)
+
+
+def _to_entry(l):
+    data = json.loads(l.comment)
+    return data['csp-report'].get('document-uri', 'Report'), l.datetime, json.dumps(data, indent=2)
+
+
+@requires_global_role("SYSA")
+def csp_reports(request):
+    logs = LogEntry.objects.filter(description='CSP violation').order_by('-datetime')[:100]
+    
+    reports = [_to_entry(l) for l in logs]
+
+    context = {
+        'reports': reports,
+    }
+    return render(request, 'log/csp_reports.html', context)

@@ -283,6 +283,23 @@ class PagesTest(TestCase):
         response = c.get(url)
         self.assertEqual(response.status_code, 403)
 
+        # check only-logged-in permission
+        p.can_read = 'LOG'
+        p.save()
+
+        c.logout()
+        response = c.get(url)
+        self.assertEqual(response.status_code, 403)
+
+        c.login_user('rando')
+        response = c.get(url)
+        self.assertEqual(response.status_code, 200)
+
+        c.login_user(inst.userid)
+        response = c.get(url)
+        self.assertEqual(response.status_code, 200)
+
+
         # ... but with a PagePermission object, non_member can access
         pp = PagePermission(person=non_member, offering=crs, role='INST')
         pp.save()
@@ -551,7 +568,7 @@ class PagesTest(TestCase):
 
         html = markup_to_html('A&nbsp;&nbsp;<p align="center">&nbsp;</p><h1 align="center">B</h1></table>',
                               'html', restricted=True)
-        self.assertEqual(html, 'A&nbsp;&nbsp;<p>&nbsp;</p>B')
+        self.assertEqual(html, 'A&nbsp;&nbsp;<p>&nbsp;</p>\nB')
 
 
         # unsafe if we ask for it

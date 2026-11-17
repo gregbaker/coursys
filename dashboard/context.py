@@ -1,10 +1,12 @@
+from pathlib import Path
 import socket
 
 from django.conf import settings
+from django.utils.safestring import mark_safe
 from coredata.models import Member
 from cache_utils.decorators import cached
 from courselib.branding import product_name, help_email
-
+from coredata.utils import get_banner_message_index, get_banner_message
 
 @cached(3600)
 def is_instr_ta(userid):
@@ -12,6 +14,30 @@ def is_instr_ta(userid):
         return False
     members = Member.objects.filter(role__in=['INST', 'TA'])
     return members.exists()
+
+
+def get_server_message(config: str, filename: Path) -> str:
+    """
+    Find a server-wide message, if provided anywhere by admins.
+
+    If set (and non-empty) in settings.THE_CONFIG then use that.
+    If the file is present, read that and use it.
+    """
+    if hasattr(settings, config):
+        # if the message is set in settings.py, honour it.
+        cfg_msg = getattr(settings, config)
+        if len(cfg_msg) > 0:
+            return cfg_msg
+
+    try:
+        file_msg = open(filename, 'rt', encoding='utf-8').read()
+        return mark_safe(file_msg)
+    except FileNotFoundError as e:
+        return ''
+    except Exception as e:
+        # file unreadable: output something for gunicorn logs
+        print(f'Could not read server message {filename}: {e}')
+        return ''
 
 
 def media(request):
@@ -22,6 +48,9 @@ def media(request):
     instr_ta = is_instr_ta(request.user.username)
     instr_ta_ab = instr_ta and request.user.is_authenticated and request.user.id % 2 == 0
     # GRAD_DATE(TIME?)_FORMAT for the grad/ra/ta apps
+    server_message_index = get_banner_message_index() or get_server_message('SERVER_MESSAGE_INDEX',Path('/dynamic_config/server_message_index.html'))
+    server_message = get_banner_message() or get_server_message('SERVER_MESSAGE', Path('/dynamic_config/server_message.html'))
+   
     return {'GRAD_DATE_FORMAT': settings.GRAD_DATE_FORMAT,
             'GRAD_DATETIME_FORMAT': settings.GRAD_DATETIME_FORMAT,
             'LOGOUT_URL': settings.LOGOUT_URL,
@@ -32,7 +61,9 @@ def media(request):
             'request_path': request.path,
             'CourSys': product_name(request),
             'help_email': help_email(request),
-            'SERVER_MESSAGE_INDEX': settings.SERVER_MESSAGE_INDEX,
-            'SERVER_MESSAGE': settings.SERVER_MESSAGE,
+            #'SERVER_MESSAGE_INDEX': get_server_message('SERVER_MESSAGE_INDEX', Path('/dynamic_config/server_message_index.html')),
+            #'SERVER_MESSAGE': get_server_message('SERVER_MESSAGE', Path('/dynamic_config/server_message.html')),
+            'SERVER_MESSAGE_INDEX': mark_safe(server_message_index),
+            'SERVER_MESSAGE': mark_safe(server_message),
             'SERVER_HOSTNAME': socket.gethostname(),
             }

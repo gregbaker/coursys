@@ -1,8 +1,12 @@
+import itertools
+
+from django.core.cache import cache
 from django.http import HttpResponse, HttpResponseRedirect, Http404
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.cache import cache_page
-from coredata.forms import RoleForm, UnitRoleForm, InstrRoleFormSet, MemberForm, PersonForm, TAForm, \
+from coredata.csrpt import initial_csrpt_auth
+from coredata.forms import CSRPTAuthForm, RoleForm, UnitRoleForm, InstrRoleFormSet, MemberForm, PersonForm, TAForm, \
         UnitAddressForm, UnitForm, SemesterForm, SemesterWeekFormset, HolidayFormset, SysAdminSearchForm, \
         TemporaryPersonForm, CourseHomePageForm, OneOfferingForm, NewCombinedForm, AnyPersonForm, RoleAccountForm, \
         OffboardForm, EditPersonForm
@@ -17,15 +21,19 @@ from onlineforms.models import FormGroup, FormGroupMember
 from log.models import LogEntry
 from coredata.models import LONG_LIVED_ROLES
 from django.urls import reverse
+from django.db import transaction
 from django.contrib import messages
 from cache_utils.decorators import cached
 from haystack.query import SearchQuerySet
 import socket, json, datetime, os
-import iso8601
 from functools import reduce
 from operator import itemgetter
 import csv
 from django.db.models import Max, Min
+from tacontracts.models import TAContract
+from ra.models import RARequest, RAAppointment
+from ta.models import TAContract as OldTAContract
+from grad.models import GradStudent
 
 @requires_global_role("SYSA")
 def sysadmin(request):
@@ -107,7 +115,11 @@ def renew_role(request, role_id):
     return HttpResponseRedirect(reverse('sysadmin:role_list'))
 
 @requires_global_role("SYSA")
+@transaction.atomic
 def delete_role(request, role_id):
+    if request.method != 'POST':
+        return ForbiddenResponse(request)
+
     role = get_object_or_404(Role, pk=role_id)
     messages.success(request, 'Deleted role %s for %s.' % (role.get_role_display(), role.person.name()))
     #LOG EVENT#
@@ -141,6 +153,8 @@ def edit_unit(request, unit_slug=None):
         if form.is_valid():
             unit.slug = None
             form.save()
+            from coredata.importer import ACAD_ORG_MAP_KEY
+            cache.delete(ACAD_ORG_MAP_KEY)
             messages.success(request, 'Edited unit %s.' % (unit.name))
             #LOG EVENT#
             l = LogEntry(userid=request.user.username,
@@ -205,7 +219,16 @@ def user_summary(request, userid):
     roles = Role.objects_fresh.filter(person=person).exclude(role="NONE").select_related('unit')
     groups = FormGroupMember.objects.filter(person=person).order_by('formgroup__name')    
 
-    context = {'person': person, 'memberships': memberships, 'roles': roles, 'groups': groups}
+    gradprograms = GradStudent.objects.filter(person=person).select_related('program')
+
+    tacontracts = TAContract.objects.filter(person=person, status__in=['NEW', 'SGN'])
+    oldcontracts = OldTAContract.objects.filter(application__person=person, status__in=['NEW', 'SGN', 'ACC'])   
+
+    ras = RARequest.objects.filter(person=person, deleted=False, complete=True, draft=False)
+    oldras = RAAppointment.objects.filter(person=person, deleted=False)
+    
+    context = {'person': person, 'memberships': memberships, 'roles': roles, 'groups': groups, 
+               'tacontracts': tacontracts, 'oldcontracts': oldcontracts, 'ras': ras, 'oldras': oldras, 'gradprograms': gradprograms}
     return render(request, "coredata/user_summary.html", context)
 
 
@@ -422,14 +445,11 @@ def add_combined_offering(request, pk):
 def admin_panel(request):
     if 'content' in request.GET:
         if request.GET['content'] == 'deploy_checks':
-            passed, failed = panel.deploy_checks(request=request)
+            passed, failed = panel.deploy_checks()
             return render(request, 'coredata/admin_panel_tab.html', {'passed': passed, 'failed': failed})
         elif request.GET['content'] == 'settings_info':
             data = panel.settings_info()
             return render(request, 'coredata/admin_panel_tab.html', {'settings_data': data})
-        elif request.GET['content'] == 'psinfo':
-            data = panel.ps_info()
-            return render(request, 'coredata/admin_panel_tab.html', {'psinfo': data})
         elif request.GET['content'] == 'email':
             user = Person.objects.get(userid=request.user.username)
             return render(request, 'coredata/admin_panel_tab.html', {'email': user.email()})
@@ -441,21 +461,25 @@ def admin_panel(request):
         elif request.GET['content'] == 'request':
             import pprint
             return render(request, 'coredata/admin_panel_tab.html', {'the_request': pprint.pformat(request.__dict__)})
-        elif request.GET['content'] == 'git':
-            git = {}
-            git['branch'] = panel.git_branch().decode('utf8')
-            git['revision'] = panel.git_revision().decode('utf8')
-            return render(request, 'coredata/admin_panel_tab.html', {'git':git})
         elif request.GET['content'] == 'pip':
             data = panel.pip_info()
             return render(request, 'coredata/admin_panel_tab.html', {'pip': data})
+        elif request.GET['content'] == 'photos':
+            from dashboard.photos import api_info
+            return render(request, 'coredata/admin_panel_tab.html', {'photoapi': api_info()})
         elif request.GET['content'] == 'csrpt':
             data = panel.csrpt_info()
             return render(request, 'coredata/admin_panel_tab.html', {'csrpt': data})
         elif request.GET['content'] == 'environ':
-            environ = [(k,v) for k,v in os.environ.items()]
+            environ = [(k,v) for k,v in os.environ.items() if 'PASS' not in k]
             environ.sort()
             return render(request, 'coredata/admin_panel_tab.html', {'environ': environ})
+        elif request.GET['content'] == 'docker-ps':
+            return render(request, 'coredata/admin_panel_tab.html', {'small_content': "# docker compose ps\n" + panel.get_docker_status('ps')})
+        elif request.GET['content'] == 'docker-stats':
+            return render(request, 'coredata/admin_panel_tab.html', {'small_content': "# docker compose stats\n" + panel.get_docker_status('stats')})
+        elif request.GET['content'] == 'csp':
+            return HttpResponse('<script>alert()</script>This should trigger a content-security-policy report for an inline script tag')
         elif request.GET['content'] == 'throw':
             raise RuntimeError(
                 'This is a deliberately-thrown exception to test exception-handling in the system. It can be ignored.')
@@ -481,8 +505,8 @@ def admin_panel(request):
                 messages.error(request, res)
         elif 'tasks' in request.POST:
             if 'daily' in request.POST:
-                from coredata.tasks import import_task
-                import_task.apply_async()
+                from coredata.tasks import daily_import
+                daily_import.apply_async()
                 messages.success(request, 'Daily import task started.')
             elif 'visits' in request.POST:
                 from advisornotes.tasks import program_info_for_advisorvisits
@@ -495,7 +519,8 @@ def admin_panel(request):
                 messages.success(request, 'Grad update and import tasks started.')
 
     context = {
-        'loadavg': os.getloadavg()
+        'loadavg': os.getloadavg(),
+        'gitcommit': os.environ.get('GIT_COMMIT', 'unknown'),
     }
     return render(request, 'coredata/admin_panel.html', context)
 
@@ -510,15 +535,16 @@ def list_anypersons(request):
 
 
 @requires_global_role("SYSA")
+@transaction.atomic
 def delete_anyperson(request, anyperson_id):
     anyperson = get_object_or_404(AnyPerson, pk=anyperson_id)
     if request.method == 'POST':
-        anyperson.delete()
         messages.success(request, 'Deleted anyperson for %s' % anyperson)
         l = LogEntry(userid=request.user.username,
                      description="deleted anyperson: %s" % anyperson,
                      related_object=anyperson)
         l.save()
+        anyperson.delete()
     return HttpResponseRedirect(reverse('sysadmin:list_anypersons'))
 
 
@@ -602,15 +628,16 @@ def edit_futureperson(request, futureperson_id):
 
 
 @requires_global_role("SYSA")
+@transaction.atomic
 def delete_futureperson(request, futureperson_id):
     if request.method == 'POST':
         futureperson = FuturePerson.objects.get(pk=futureperson_id)
-        futureperson.delete()
         messages.success(request, 'Deleted futureperson %s' % futureperson)
         l = LogEntry(userid=request.user.username,
                      description="deleted futureperson: %s" % futureperson,
                      related_object=futureperson)
         l.save()
+        futureperson.delete()
     return HttpResponseRedirect(reverse('sysadmin:list_futurepersons'))
 
 @requires_global_role("SYSA")
@@ -652,15 +679,16 @@ def list_roleaccounts(request):
     return render(request, 'coredata/role_accounts.html', context)
 
 @requires_global_role("SYSA")
+@transaction.atomic
 def delete_roleaccount(request, roleaccount_id):
     roleaccount = RoleAccount.objects.get(pk=roleaccount_id)
     if request.method == 'POST':
-        roleaccount.delete()
         messages.success(request, 'Deleted roleaccount %s' % roleaccount)
         l = LogEntry(userid=request.user.username,
                      description="deleted roleaccount: %s" % roleaccount,
                      related_object=roleaccount)
         l.save()
+        roleaccount.delete()
     return HttpResponseRedirect(reverse('sysadmin:list_roleaccounts'))
 
 @requires_global_role("SYSA")
@@ -826,6 +854,7 @@ def new_unit_role(request):
     return render(request, 'coredata/new_unit_role.html', context)
 
 @requires_role("ADMN")
+@transaction.atomic
 def offboard_unit(request):
     if request.method == 'POST':
         form = OffboardForm(request.POST)
@@ -838,22 +867,22 @@ def offboard_unit(request):
             groups = FormGroup.objects.filter(members=person, unit__in=Unit.sub_units(request.units))
             if delete_roles:
                 for role in roles:
-                    role.delete()
                     l = LogEntry(userid=request.user.username,
                                  description=("Deleted role: %s in %s via offboarding form.") % (role, role.unit),
                                  related_object=role)
                     l.save()
                     messages.success(request, "Removed role %s as %s in %s." % (person, role.get_role_display(), role.unit.label))
+                    role.delete()
             if delete_formgroups:
                 for group in groups:
                     member = FormGroupMember.objects.get(person=person, formgroup=group)
-                    member.delete()
                     l = LogEntry(userid=request.user.username,
                                  description=("Removed %s from form group %s (%i) via offboarding form.") % (
                                               person.userid_or_emplid(), group, group.id),
                                  related_object=group)
                     l.save()
                     messages.success(request, "Removed %s from formgroup %s" % (person, group))
+                    member.delete()
             return HttpResponseRedirect(reverse('admin:unit_role_list'))
     else:
         form = OffboardForm()
@@ -935,6 +964,7 @@ def renew_unit_role(request, role_id):
     return HttpResponseRedirect(reverse('admin:unit_role_list'))
 
 @requires_role("ADMN")
+@transaction.atomic
 def delete_unit_role(request, role_id):
     if request.method != 'POST':
         return ForbiddenResponse(request)
@@ -1133,27 +1163,6 @@ def offering_by_id(request):
 
     offering = get_object_or_404(CourseOffering, pk=id_)
     return HttpResponse(offering.search_label_value())
-
-
-from coredata.queries import find_person
-@login_required
-def XXX_sims_person_search(request):
-    # check permissions
-    roles = Role.all_roles(request.user.username)
-    allowed = set(['ADVS', 'ADMN', 'GRAD', 'FUND'])
-    if not(roles & allowed):
-        # doesn't have any allowed roles
-        return ForbiddenResponse(request, "Not permitted to do person search.")
-    
-    if 'emplid' not in request.GET:
-        return ForbiddenResponse(request, "Must provide 'emplid' query.")
-    emplid = request.GET['emplid']
-    response = HttpResponse(content_type='application/json')
-
-    data = find_person(emplid)
-    
-    json.dump(data, response, indent=1)
-    return response
 
 
 def browse_courses(request, unit_slug=None, campus=None):
@@ -1506,9 +1515,9 @@ def _offering_meeting_time_data(request, offering):
     fullcalendar.js data for this offering's events
     """
     try:
-        st = iso8601.parse_date(request.GET['start'])
-        en = iso8601.parse_date(request.GET['end'])
-    except (KeyError, ValueError, iso8601.ParseError):
+        st = datetime.datetime.fromisoformat(request.GET['start'])
+        en = datetime.datetime.fromisoformat(request.GET['end'])
+    except (KeyError, ValueError):
         return NotFoundResponse(request, errormsg="Bad request")
 
     local_tz = pytz.timezone(settings.TIME_ZONE)
@@ -1561,6 +1570,7 @@ def _has_homepages(unit_id, semester_id):
     offerings = [o for o in offerings if 'url' in o.config]
     return bool(offerings)
 
+@login_required
 def course_home_pages(request):
     semester = Semester.current()
     units = Unit.objects.all().order_by('label')
@@ -1571,6 +1581,7 @@ def course_home_pages(request):
     }
     return render(request, "coredata/course_home_pages.html", context)
 
+@login_required
 def course_home_pages_unit(request, unit_slug, semester=None):
     if semester:
         semester = get_object_or_404(Semester, name=semester)
@@ -1668,7 +1679,7 @@ def _course_drop_data(offering):
 
     return data
 
-@requires_role('ADMN')
+@requires_role(['ADMN', 'REPV'])
 def course_enrolment_download(request, course_slug):
     """
     Download enrolment data for a course offering
@@ -1690,7 +1701,7 @@ def course_enrolment_download(request, course_slug):
     return response
 
 
-@requires_role('ADMN')
+@requires_role(['ADMN', 'REPV'])
 def course_enrolment(request, course_slug):
     """
     Enrolment data and analytics for a course offering
@@ -1729,3 +1740,90 @@ def course_enrolment(request, course_slug):
         'enrolment_end': enrolment_end
     }
     return render(request, 'coredata/course_enrolment.html', context)
+
+
+@requires_global_role("SYSA")
+def csrpt_auth(request):
+    """
+    Manage reporting database authentication
+    """
+    if request.method == 'POST':
+        form = CSRPTAuthForm(request.POST)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            password = form.cleaned_data['password']
+
+            result = initial_csrpt_auth(username, password, get_cert=True)
+
+            if result is None:
+                messages.success(request, 'CSRPT auth successful')
+                l = LogEntry(userid=request.user.username,
+                      description=f'Did CSRPT auth for {username}', related_object=request.user)
+                l.save()
+                return HttpResponseRedirect(reverse('sysadmin:csrpt_auth', kwargs={}))
+            else:
+                messages.error(request, f'CSRPT auth failed: {result}')
+
+    else:
+        form = CSRPTAuthForm(initial={'username': request.user.username})
+
+    context = {
+        'form': form
+    }
+    return render(request, 'coredata/csrpt_auth.html', context)
+
+
+def _clear_config(objects):
+    for o in objects:
+        o.config = {}
+
+
+def demo_data(request):
+    """
+    Export privacy-safe demo data for import on a demo server
+    
+    Requires first few characters of the server secret as ?key=abc123, so we can easily access with
+    curl or similar, but still not broadcast this too publicly (even though it's all public data).
+    """
+    from django.core import serializers
+
+    key = settings.SECRET_KEY[:6]
+    if 'key' not in request.GET or request.GET['key'] != key:
+        return HttpResponse('Unauthorized', status=401)
+
+    data = []
+    the_past = datetime.date.today() - datetime.timedelta(days=365)
+
+    semesters = Semester.objects.all()
+    data.append(semesters)
+
+    all_units = Unit.objects.all()
+    # Get units in dependency order, so .parent is there when inserting
+    units = [u for u in all_units if u.parent is None]
+    last_len = 0
+    while len(units) != last_len:
+        last_len = len(units)
+        units.extend([u for u in all_units if u.parent in units and u not in units])
+    _clear_config(units)
+    data.append(units)
+
+    offerings = CourseOffering.objects.filter(semester__start__gte=the_past).exclude(component="CAN").select_related('course')
+    _clear_config(offerings)
+
+    courses = {o.course for o in offerings}
+    data.append(courses)
+    data.append(offerings)
+
+    instructors = Member.objects.filter(offering__in=offerings, role='INST', added_reason='AUTO').select_related('person')
+    _clear_config(instructors)
+
+    people = {m.person for m in instructors}
+    _clear_config(people)
+    for i, p in enumerate(people):
+        p.emplid = str(400000000 + i)
+        p.title = 'M'
+    data.append(people)
+    data.append(instructors)
+
+    content = serializers.serialize('json', itertools.chain.from_iterable(data))
+    return HttpResponse(content, content_type='application/json')

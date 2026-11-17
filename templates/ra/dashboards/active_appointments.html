@@ -46,7 +46,7 @@ $(document).ready(function() {
 
 {% block content %}
 <div class="actionlist">
-  <a class="btn" href="{% url "ra:new_request" %}">New RA Request</a>
+  <a class="btn" href="{% url "ra:new_request" %}">New Appointment Request</a>
   <a class="btn" href="{% url "ra:advanced_search" %}">Advanced Search</a>
   <a class="btn" href="{% url "ra:browse_appointments" %}">Browse Appointments</a>
   <div class="btn pressed">Active Appointments</div>
@@ -108,7 +108,7 @@ $(document).ready(function() {
       {% for req in research_assistant %}
         <tr>
           <td><a href="{% url "ra:view_request" ra_slug=req.slug %}">
-            {{ req.get_sort_name }}
+            {{ req.get_sort_name }}{% if req.usra %} <i class="fa fa-briefcase" title="USRA"></i>{% endif %}
           </a></td>
           <td>{{ req.supervisor }}</td>
           <td><span class="sort">{{ req.start_date.isoformat }}</span>{{ req.start_date }}</td>

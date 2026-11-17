@@ -17,10 +17,10 @@
     {% if draft %}
       Draft for {{ name }}
     {% else %}
-      Update RA {{ status }} for {{ name }}
+      Update {{ status }} for {{ name }}
     {% endif %}
   {% else %}
-    New RA Request
+    New Appointment Request
   {% endif %}
 {% endblock %}
 
@@ -29,10 +29,10 @@
     {% if draft %}
       Draft for {{ name }}
     {% else %}
-      Update RA {{ status }} for {{ name }}
+      Update {{ status }} for {{ name }}
     {% endif %}
   {% else %}
-    New RA Request
+    New Appointment Request
   {% endif %}
 {% endblock %}
 
@@ -46,11 +46,11 @@
     {% if draft %}
       <li>Draft for {{ name }}</li>
     {% else %}
-      <li><a href="{% url "ra:view_request" ra_slug=slug %}">View RA {{ status }} for {{ name }}</a></li>
-      <li>Edit RA {{ status }} for {{ name }}</li>
+      <li><a href="{% url "ra:view_request" ra_slug=slug %}">View {{ get_hiring_category_title }} {{ status }} for {{ name }}</a></li>
+      <li>Edit {{ status }} for {{ name }}</li>
     {% endif %}
   {% else %}
-    <li>New RA Request</li>
+    <li>New Appointment Request</li>
   {% endif %}
 {% endblock %}
 
@@ -84,7 +84,7 @@
                 {{ form }}
             {% endfor %}
         {% else %}
-            {{ wizard.form|as_dl_excludefields:"scholarship_confirmation_1,scholarship_confirmation_2,scholarship_confirmation_3,scholarship_confirmation_4,scholarship_confirmation_5,scholarship_confirmation_6,scholarship_confirmation_7,scholarship_confirmation_8,scholarship_confirmation_9,scholarship_subsequent,scholarship_notes" }} 
+            {{ wizard.form|as_dl }} 
             <div class="biweekly_info">
               <p><div class="important_info">
                 <b>Estimated Biweekly Rate:</b> $<span class="biweekly_rate_info"></span>
@@ -95,12 +95,6 @@
               <b>Estimated Total Funding:</b> $<span class="total_pay_info"></span>
               <div class="helptext"><span class="total_pay_calc"></span></div>
             </div></p>
-            <p>Please answer below required questions to confirm the full payment is for scholarship/stipend purpose:</p>
-            <p><b>1. Does/will the funding from your grant(s) result in research or research-related activities being performed by the student that:</b></p>
-            <div class="indent">{{ wizard.form|as_dl_includefields:"scholarship_confirmation_1,scholarship_confirmation_2,scholarship_confirmation_3,scholarship_confirmation_4" }}</div>
-            <p><b>2. As part of your interaction with the student who is receiving the scholarship, do you/will you:</b></p>
-            <div class="indent">{{ wizard.form|as_dl_includefields:"scholarship_confirmation_5,scholarship_confirmation_6,scholarship_confirmation_7,scholarship_confirmation_8,scholarship_confirmation_9" }}</div>
-            {{ wizard.form|as_dl_includefields:"scholarship_subsequent,scholarship_notes" }}
         {% endif %}
     </div>
     </fieldset>
@@ -109,7 +103,7 @@
         <button id="prev" name="wizard_goto_step" class="btn" type="submit" value="{{ wizard.steps.prev }}" formnovalidate>{% trans "Previous" %}</button>
         <input id="save" type="submit" class="submit" value="Next"/>
         {% if draft or draft_option %}
-        <input id="done_draft" name="save_draft" type="submit" class="submit confirm-submit" value="Save Up to This Page as Draft" data-submit-action="safe draft up to this point"/>
+        <input id="done_draft" name="save_draft" type="submit" class="submit confirm-submit" value="Save Up to This Page as Draft" data-submit-action="save your draft up to this point"/>
         {% endif %}
     </div>
   </form>  

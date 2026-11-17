@@ -178,7 +178,7 @@ class URLCustomField(FieldBase):
         return self.URLConfigForm(self.config)
 
     def make_entry_field(self, fieldsubmission=None):
-        c = forms.URLField(required=self.config['required'],
+        c = forms.URLField(required=self.config['required'], assume_scheme='https',
             label=self.config['label'],
             help_text=self.config['help_text'])
 
@@ -259,7 +259,7 @@ class SemesterField(FieldBase):
             c.initial = fieldsubmission.data['info']
 
         if not self.config['required']:
-            c.choices.insert(0, ('', '\u2014'))
+            c.choices = [('', '—')] + list(c.choices)
 
         return c
 

@@ -29,7 +29,7 @@ class ActivityForm(forms.Form):
     percent = forms.DecimalField(max_digits=5, decimal_places=2, required=False, label='Percentage',
                                  help_text='Percent of final mark',
                                  widget=forms.NumberInput(attrs={'class': 'smallnumberinput'}))
-    url = forms.URLField(required=False, label='URL',
+    url = forms.URLField(required=False, label='URL', assume_scheme='https',
                                  help_text='Page for more information, e.g. assignment description or exam info',
                                  widget=forms.TextInput(attrs={'size':'60'}))
 
@@ -305,7 +305,7 @@ class StudentSearchForm(forms.Form):
 
 class CourseConfigForm(forms.Form):
     from forum.models import IDENTITY_CHOICES
-    url = forms.URLField(required=False, label='Course URL',
+    url = forms.URLField(required=False, label='Course URL', assume_scheme='https',
             help_text='Course home page address',
             widget=forms.TextInput(attrs={'size':'60'}))
     taemail = forms.EmailField(required=False, label="TA Contact Email",
@@ -316,10 +316,6 @@ class CourseConfigForm(forms.Form):
             help_text="Should the discussion forum be activated for this course?")
     forum_identity = forms.ChoiceField(required=True, label='Discussion Forum Anonymity', choices=IDENTITY_CHOICES,
             help_text='If using the discussion forum, what level of anonymity should be allowed for student posts? Identity is always known to the system in case of abuse.')
-    #indiv_svn = forms.BooleanField(required=False, label="Individual SVN access",
-    #        help_text="Can the instructor and TAs read students' individual Subversion repositories? Set only if they are being used explicitly for grading.")
-    #instr_rw_svn = forms.BooleanField(required=False, label="Write SVN access",
-    #        help_text="Can the instructor and TAs write to students' individual Subversion repositories?")
     group_min = forms.IntegerField(required=False, label="Minimum Group Size", initial=1, min_value=1, max_value=50,
             help_text="Smallest possible group. Entering 1 here implies students can work alone on group activities.",
             widget=forms.NumberInput(attrs={'class': 'smallnumberinput'}))

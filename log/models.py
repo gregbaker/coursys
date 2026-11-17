@@ -7,8 +7,16 @@ from django.db import models, connection
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 
+from courselib.uuid import UUIDField
+
 
 PURGE_AFTER_DAYS = 30
+
+
+try:  # switch to uuid7 here when possible (Python 3.14) for less index fragmentation but fall back gracefully
+    uuidv = uuid.uuid7
+except AttributeError:
+    uuidv = uuid.uuid1
 
 
 class LogEntry(models.Model):
@@ -103,8 +111,8 @@ class EventLogEntry(models.Model):
     * real field: efficient querying and sorting. Use for things that and likely to be searched and/or always there.
     * JSON data: flexible. Use for everything else.
     """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid1, editable=False)
-    time = models.DateTimeField(blank=False, null=False, help_text='Time of the *start* of this event.')
+    id = UUIDField(primary_key=True, default=uuidv, editable=False)
+    time = models.DateTimeField(blank=False, null=False, db_index=True, help_text='Time of the *start* of this event.')
     duration = models.DurationField(blank=False, null=False, help_text='Time taken for this event.')
     data = models.JSONField()
 
@@ -165,8 +173,22 @@ class CeleryTaskLog(EventLogEntry):
     table_column_config = [None, None, None]
 
 
+class MonitoringDataLog(EventLogEntry):
+    """
+    Log of a data around system usage/performance.
+
+    Created by logs.tasks.*
+    """
+    metric = models.CharField(max_length=255, null=False, db_index=True)
+    value = models.FloatField('value', null=False)
+
+    display_columns = ['time', 'metric', 'value']
+    table_column_config = [None, None, None]
+
+
 # dict of EventLogEntry for discovery in log exploration UI
 EVENT_LOG_TYPES = {
     'request': RequestLog,
     'task': CeleryTaskLog,
+    'monitoring': MonitoringDataLog,
 }

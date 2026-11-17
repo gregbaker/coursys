@@ -11,7 +11,6 @@ from django.conf import settings
 from django.core.cache import cache
 from django.urls import reverse
 from django.core.mail import mail_admins
-from courselib.svn import update_offering_repositories
 from grades.models import LetterActivity
 from grad.models import GradStudent, STATUS_ACTIVE, STATUS_APPLICANT, STATUS_GPA
 from ra.models import RAAppointment
@@ -20,6 +19,7 @@ import itertools, random
 today = datetime.date.today()
 past_cutoff = today - datetime.timedelta(days=30)
 future_cutoff = today + datetime.timedelta(days=150)
+ACAD_ORG_MAP_KEY = 'acad_org_map'
 
 
 @transaction.atomic
@@ -38,7 +38,7 @@ def fix_emplid():
         if not p.userid:
             continue
         emplid = userid_to_emplid(p.userid)
-        if emplid:
+        if emplid and str(emplid).isdigit():
             p.emplid = emplid
             p.save_if_dirty()
 
@@ -65,21 +65,21 @@ def get_unit(acad_org, create=False):
     """
     Get the corresponding Unit
     """
-    # there are some inconsistent acad_org values: normalize.
-    if acad_org == 'GERON':
-        acad_org = 'GERONTOL'
-    elif acad_org == 'GEOG':
-        acad_org = 'GEOGRAPH'
-    elif acad_org == 'BUS':
-        acad_org = 'BUS ADMIN'
-    elif acad_org == 'HUM':
-        acad_org = 'HUMANITIES'
-    elif acad_org == 'EVSC':
-        acad_org = 'ENVIRO SCI'
+    # build map of acad_org to Unit.pk values and cache it.
+    acad_org_map = cache.get(ACAD_ORG_MAP_KEY)
+    if acad_org_map is None:
+        units = Unit.objects.all()
+        # the additional acad_org values from .config['other_acad_orgs'] that we normalize:
+        acad_org_map = dict(itertools.chain.from_iterable(((ao, u.pk) for ao in u.other_acad_orgs()) for u in units))
+        # the "real" acad_org values for each unit:
+        canonical = {u.acad_org: u.pk for u in units if u.acad_org}
+        acad_org_map.update(canonical)
+
+        cache.set(ACAD_ORG_MAP_KEY, acad_org_map, 12*3600)
 
     try:
-        unit = Unit.objects.get(acad_org=acad_org)
-    except Unit.DoesNotExist:
+        unit = Unit.objects.get(pk=acad_org_map[acad_org])
+    except (Unit.DoesNotExist, KeyError):
         db = SIMSConn()
         db.execute("SELECT DESCRFORMAL FROM PS_ACAD_ORG_TBL "
                    "WHERE EFF_STATUS='A' AND ACAD_ORG=%s", (acad_org,))
@@ -100,7 +100,7 @@ def get_unit(acad_org, create=False):
             unit = Unit(acad_org=acad_org, label=label, name=name, parent=None)
             unit.save()
         else:
-            raise KeyError("Unknown unit: acad_org=%s, label~=%s, name~=%s." % (acad_org, label, name))
+            raise KeyError(f"Unknown unit: acad_org={acad_org!r}, label~={label!r}, name~={name!r}. Either create Unit or add to another unit's config \"other_acad_orgs\": [{acad_org!r}].")
 
     return unit
 
@@ -170,7 +170,7 @@ def import_offering(subject, number, section, strm, crse_id, class_nbr, componen
             c2.save()
             c1.class_nbr = c2_nbr
             c1.save()
-        mail_admins('class_nbr re-use', 'Conflict between unique keys on %s and %s: swapped their .class_nbr fields and carried on.' % (c1, c2))
+        mail_admins(subject='class_nbr re-use', message='Conflict between unique keys on %s and %s: swapped their .class_nbr fields and carried on.' % (c1, c2))
         return  # update it properly on the next import when things are hopefully coherent
     elif len(c_old)==1:
         # already in DB: update things that might have changed
@@ -274,9 +274,12 @@ def _person_save(p):
         # try again now
         #p.save()
 
+
 imported_people = {}
 IMPORT_THRESHOLD = 3600*24*7 # import personal info infrequently
 NO_USERID_IMPORT_THRESHOLD = 3600*24*2 # import if we don't know their userid yet
+
+
 def get_person(emplid, commit=True, force=False, grad_data=False):
     """
     Get/update personal info for this emplid and return (updated & saved) Person object.
@@ -381,7 +384,7 @@ def import_meeting_times(offering):
     found_mtg = set()
     
     for start,end, room, mon,tues,wed,thurs,fri,sat,sun, start_dt,end_dt, stnd_mtg_pat, class_section in db:
-        # dates come in as strings from DB2/reporting DB
+        # dates come in as strings from reporting DB
         if not start or not end:
             # some meeting times exist with no start/end time
             continue
@@ -557,9 +560,6 @@ def import_offering_members(offering, students=True):
     if students:
         import_students(offering)
     import_meeting_times(offering)
-    if settings.SVN_DB_CONNECT:
-        update_offering_repositories(offering)
-
 
 
 ########################################################################################################################
@@ -573,7 +573,6 @@ def import_semester_offerings(strm, students=True, extra_where='1=1'):
     if students:
         import_all_students(strm, extra_where=extra_where, offering_map=offering_map)
     import_all_meeting_times(strm, extra_where=extra_where, offering_map=offering_map)
-    import_all_offering_repositories(strm)
 
 
 def crseid_offering_map(strm):
@@ -676,20 +675,6 @@ def import_all_meeting_times(strm, extra_where='1=1', offering_map=None):
 
 
 @transaction.atomic
-def import_all_offering_repositories(strm):
-    if not settings.SVN_DB_CONNECT:
-        return
-
-    for o in CourseOffering.objects.filter(semester__name=strm):
-        update_offering_repositories(o)
-
-
-
-
-
-
-
-@transaction.atomic
 def import_joint(extra_where='1=1'):
     """
     Find combined sections and set CourseOffering.config['joint_with'] appropriately.
@@ -780,7 +765,7 @@ def import_admin_email(source, message, subject='data import: intervention requi
     """
     Message the admins about an import problem. Assumes we're in a context where stdout does us no good.
     """
-    mail_admins(subject, '[%s checking in.]\n\n%s' % (source, message))
+    mail_admins(subject=subject, message='[%s checking in.]\n\n%s' % (source, message))
 
 @transaction.atomic
 def import_semester_info(verbose=False, dry_run=False, long_long_ago=False, bootstrap=False):

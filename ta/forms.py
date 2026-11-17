@@ -1,11 +1,13 @@
 import re
 from django import forms
 from django.forms.utils import ErrorList
+from django.utils.safestring import mark_safe
+from django.utils.html import conditional_escape
 from collections import OrderedDict
 from coredata.models import Member, Role, Person
 from coredata.widgets import CalendarWidget
 from ta.models import TUG, TAApplication,TAContract, CoursePreference, TACourse, TAPosting, Skill, \
-        CourseDescription, CATEGORY_CHOICES, STATUS_CHOICES, TAContractEmailText, TAWorkloadReview, TAEvaluation
+        CourseDescription, CATEGORY_CHOICES, STATUS_CHOICES, TAContractEmailText, TAWorkloadReview, TAEvaluation, TACONTRACT_DEFAULT_REMARK
 from ta.util import table_row__Form
 import itertools, decimal, datetime
 from django.forms.formsets import formset_factory
@@ -26,8 +28,8 @@ class LabelledHidden(forms.HiddenInput):
     def render(self, name, value, attrs=None, renderer=None):
         res = super(LabelledHidden, self).render(name, value, attrs=attrs, renderer=renderer)
         if value:
-            res += str(value)
-        return res
+            res += conditional_escape(value)
+        return mark_safe(res)
 
 @table_row__Form
 class TUGDutyForm(forms.Form):
@@ -258,6 +260,10 @@ class TAEvaluationFormbyTA(forms.ModelForm):
 
 class TAApplicationForm(forms.ModelForm):
     sin_default = '000000000'
+    physical_present_declare = forms.BooleanField (label="I agree to be physically present on campus for all assigned duties throughout the entirety of my appointment", 
+                                                   widget=forms.CheckboxInput(),
+                                                   help_text=TACONTRACT_DEFAULT_REMARK)
+    
     class Meta:
         model = TAApplication
         exclude = ('posting', 'course_load', 'person','skills','campus_preferences','rank','late','admin_created', 'config', 'sin')
@@ -278,6 +284,7 @@ class TAApplicationForm(forms.ModelForm):
         self.fields['current_program'].required = True
         self.fields['resume'].required = True
         self.fields['transcript'].required = True
+        self.fields['physical_present_declare'].required = True
         rolepersonids = Role.objects.filter(unit=self.initial['unit'], role__in=['FAC', 'SUPV']).values_list('person_id', flat=True)
         person = Person.objects.filter(id__in=rolepersonids)
         self.fields['supervisor'].queryset = person
@@ -330,7 +337,20 @@ class TAAcceptanceForm(forms.ModelForm):
     class Meta:
         model = TAContract
         fields = ['sin']
+
+class TAAcceptTermsForm(forms.Form):
+    physical_present_declare = forms.BooleanField (label="I agree to be physically present on campus for all assigned duties throughout the entirety of my appointment", 
+                                                   widget=forms.CheckboxInput(),
+                                                   help_text=TACONTRACT_DEFAULT_REMARK)
+    roles_conflict_declare =  forms.BooleanField (label="I agree to not accept a TA contract for any course or combined course that i am enrolled in for the same term", 
+                                                   widget=forms.CheckboxInput())
     
+    def __init__(self, *args, **kwargs):
+        super(TAAcceptTermsForm, self).__init__(*args, **kwargs)
+        self.fields['physical_present_declare'].required = True
+        self.fields['roles_conflict_declare'].required = True
+
+
 class NewTAContractForm(forms.Form):
     application = forms.ModelChoiceField(queryset=TAApplication.objects.none())
 
@@ -558,7 +578,7 @@ class TAPostingForm(forms.ModelForm):
         help_text='Do not prompt students for their Campus choice.')
     offer_text = WikiField(label="Offer Text", required=False, 
         help_text='Presented as "More Information About This Offer"; formatted in <a href="/docs/pages">WikiCreole markup</a>.')
-    tssu_link = forms.URLField(required=True, label="TSSU URL", help_text="URL showing on TUG for TSSU collective agreement",
+    tssu_link = forms.URLField(required=True, label="TSSU URL", assume_scheme='https', help_text="URL showing on TUG for TSSU collective agreement",
                                widget=forms.TextInput(attrs={'size': 120}))
     
     # TODO: sanity-check the dates against semester start/end
@@ -585,7 +605,11 @@ class TAPostingForm(forms.ModelForm):
         self.initial['contact'] = self.instance.contact().id
         self.initial['send_notify'] = self.instance.send_notify()
         self.initial['offer_text'] = self.instance.offer_text()
-        skills = Skill.objects.filter(posting=self.instance)
+        #skills = Skill.objects.filter(posting=self.instance)
+        if self.instance.pk:
+            skills = Skill.objects.filter(posting=self.instance)
+        else:
+            skills = Skill.objects.none()
         self.initial['extra_questions'] = '\n'.join(self.instance.extra_questions())
         self.initial['skills'] = '\n'.join((s.name for s in skills))
         self.initial['instructions'] = self.instance.instructions()
@@ -708,7 +732,10 @@ class TAPostingForm(forms.ModelForm):
     def clean_skills(self):
         skills = self.cleaned_data['skills']
         skills = [s.strip() for s in skills.split("\n") if len(s.strip()) > 0]
-        old_skills = Skill.objects.filter(posting=self.instance)
+        if self.instance.pk is None:
+            old_skills = Skill.objects.none()
+        else:
+            old_skills = Skill.objects.filter(posting=self.instance)
         res = []
         for i, skill in enumerate(skills):
             if len(old_skills) < i+1:
@@ -775,7 +802,7 @@ class TAContactForm(forms.Form):
     statuses = forms.MultipleChoiceField(choices=APPLICANT_STATUSES+STATUS_CHOICES, help_text="TAs to contact (according to contract status)")
     subject = forms.CharField()
     text = forms.CharField(widget=forms.Textarea(), help_text='Message body. <a href="http://en.wikipedia.org/wiki/Textile_%28markup_language%29">Textile markup</a> allowed.')
-    url = forms.URLField(label="URL", required=False, help_text='Link to include in the message. (optional)')
+    url = forms.URLField(label="URL", required=False, assume_scheme='https', help_text='Link to include in the message. (optional)')
 
 
 class CourseDescriptionForm(forms.ModelForm):

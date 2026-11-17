@@ -1,3 +1,5 @@
+import os
+
 from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse, HttpResponseRedirect, HttpResponsePermanentRedirect, Http404, HttpResponseForbidden
 from django.urls import reverse
@@ -32,7 +34,6 @@ from xml.etree.ElementTree import ParseError
 from ipware import get_client_ip
 import pytz
 import itertools
-import iso8601
 from urllib.parse import urlencode
 from urllib.error import HTTPError
 
@@ -311,6 +312,10 @@ def _offerings_calendar_data(offerings, labsecs, start, end, local_tz, dt_string
     
     Used both in _calendar_event_data and by the course browser (coredata.views.browse_courses_info)
     """
+    if start.tzinfo is None:
+        start = local_tz.localize(start)
+    if end.tzinfo is None:
+        end = local_tz.localize(end)
 
     # holidays and cancellations
     cancellations = set() # days when classes cancelled
@@ -506,9 +511,9 @@ def calendar_data(request):
     AJAX JSON results for the calendar (rendered by dashboard.views.calendar)
     """
     try:
-        st = iso8601.parse_date(request.GET['start'])
-        en = iso8601.parse_date(request.GET['end'])
-    except (KeyError, ValueError, iso8601.ParseError):
+        st = datetime.datetime.fromisoformat(request.GET['start'])
+        en = datetime.datetime.fromisoformat(request.GET['end'])
+    except (KeyError, ValueError):
         return NotFoundResponse(request, errormsg="Bad request")
 
     user = get_object_or_404(Person, userid=request.user.username)
@@ -819,26 +824,6 @@ def view_doc(request, doc_slug):
     return res
 
 
-# data export views
-# public data, so no authentication done
-@gzip_page
-def courses_json(request, semester):
-    offerings = CourseOffering.objects.filter(semester__name=semester)\
-        .exclude(component="CAN").exclude(flags=CourseOffering.flags.combined) \
-        .select_related('semester').prefetch_related('meetingtime_set')
-    instructors = Member.objects.filter(role='INST', offering__semester__name=semester).select_related('person')
-    instr_by_offeringid = dict(
-        (oid, list(instr))
-        for oid, instr
-        in itertools.groupby(instructors, lambda m: m.offering_id)
-    )
-
-    resp = HttpResponse(content_type="application/json")
-    resp['Content-Disposition'] = 'inline; filename="' + semester + '.json"'
-    crs_data = (o.export_dict(instructors=instr_by_offeringid.get(o.id, [])) for o in offerings)
-    json.dump({'courses': list(crs_data)}, resp, indent=1)
-    return resp
-
 @requires_role('ADVS')
 def enable_advisor_token(request):
     user = get_object_or_404(Person, userid=request.user.username)
@@ -1032,5 +1017,72 @@ def site_search(request):
 
 @requires_global_role('SYSA')
 def frontend_check(request):
+    if request.GET.get('page') == 'letter':
+        # Check for correct PDF generation
+        # Adapted from grad.views.get_letter
+
+        from coredata.models import Unit
+        from dashboard.letters import OfficialLetter, LetterContents
+
+        response = HttpResponse(content_type="application/pdf")
+        response['Content-Disposition'] = 'inline; filename="foo.pdf"'
+
+        doc = OfficialLetter(response, unit=Unit.objects.get(label='CMPT'))
+        l = LetterContents(to_addr_lines=['Recipient Name', 'The Address'],
+                        from_name_lines=['Sender Name', 'Different Address'],
+                        date=datetime.date.today(),
+                        closing='Bye',
+                        signer=request.user,
+                        use_sig=False,
+                        body_font_size=12)
+        content_lines = ['Hello.', 'Thank you for your attention.']
+        l.add_paragraphs(content_lines)
+        doc.add_letter(l)
+        doc.write()
+        return response
+
+    elif request.GET.get('page') == 'xls':
+        # Check for correct Excel file generation
+        # Adapted from grad.views.search
+        import xlwt
+        book = xlwt.Workbook(encoding='utf-8')
+        sheet = book.add_sheet('Search Results')
+        hdrstyle = xlwt.easyxf('font: bold on; pattern: pattern solid, fore_colour grey25; align: horiz centre')
+        sheet.write(0, 0, 'Graduate Student Search Results', xlwt.easyxf('font: bold on, height 320'))
+        sheet.row(0).height = 400
+        for i,hdr in enumerate(['A', 'B']):
+            sheet.write(1, i, hdr, hdrstyle)
+        
+        for i,grad in enumerate([(1,2), (3,4)]):
+            for j in range(2):
+                sheet.write(i+2, j, grad[j] )
+        
+        response = HttpResponse(content_type='application/vnd.ms-excel')
+        response['Content-Disposition'] = 'inline; filename="foo.xls"'
+        book.save(response)
+        return response
+
+
     context = {}
     return render(request, "dashboard/frontend_check.html", context)
+
+
+def healthcheck(request):
+    from coredata.panel import health_check
+    try:
+        res = health_check()
+        status = 200
+    except Exception as e:
+        if os.path.isfile('/dynamic_config/healthcheck_errors'):
+            raise
+        else:
+            res = {'exception': str(e)}
+            # any status code >=500 triggers admin email, which is generally a little aggressive
+            status = 404
+
+    # render it in an HTML template, as an implicit check that our static media, etc is okay
+    context = {
+        'res': res,
+        'status': status,
+    }
+    return render(request, "dashboard/healthcheck.html", context, status=status)

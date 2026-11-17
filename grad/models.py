@@ -536,6 +536,12 @@ class GradStudent(models.Model, ConditionalSaveMixin):
         supervisors = ", ".join(supervisors)
         return supervisors
 
+    def list_all_supervisors(self):
+        supervisors = Supervisor.objects.filter(student=self, removed=False)
+        supervisors_list = [(s.sortname() + ' ('+ s.supervisor_type + ')') for s in supervisors]
+        supervisors_list = ", ".join(supervisors_list)
+        return supervisors_list
+    
     def active_semesters_display(self):
         """
         Format self.active_semesters_display for display
@@ -1024,27 +1030,21 @@ class GradStudent(models.Model, ConditionalSaveMixin):
                             st = st.next_semester()
 
             if (type==None or type=='scholarship'): 
-                # scholarships
-                scholarships = Scholarship.objects.filter(student=self, removed=False).filter(scholarship_type__eligible=True).select_related('start_semester')
-                    
+                # scholarships - using new scholarship table which data is imported from SIMS, no more manual input
+                scholarships = GradScholarship.objects.filter(student=self, removed=False, eligible=True).select_related('semester')                    
                 for ss in scholarships:
-                        semlen =  (ss.end_semester-ss.start_semester+1)  
-                        if semlen == 0:
-                            semlen = 1
-                            received_amt['remarks'] += 'scholarship semlen:0 sem:' + str(ss.start_semester) + '-' + str(ss.end_semester)
-                        amt = ss.amount/semlen   
-                        for i in range(semlen):
-                            if int(ss.start_semester.name) >= frs and int(ss.start_semester.name) < frs+10:
-                                received_amt['year1'] += amt
-                            if int(ss.start_semester.name) >= frs+10 and int(ss.start_semester.name) < frs+20:
-                                received_amt['year2'] += amt
-                            if int(ss.start_semester.name) >= frs+20 and int(ss.start_semester.name) < frs+30:
-                                received_amt['year3'] += amt
-                            if int(ss.start_semester.name) >= frs+30 and int(ss.start_semester.name) < frs+40:
-                                received_amt['year4'] += amt
-                            if int(ss.start_semester.name) >= frs+40:
-                                received_amt['otheryear'] += amt
-                            ss.start_semester = ss.start_semester.next_semester()
+                        if int(ss.semester.name) >= frs and int(ss.semester.name) < frs+10:
+                            received_amt['year1'] += ss.amount
+                        if int(ss.semester.name) >= frs+10 and int(ss.semester.name) < frs+20:
+                            received_amt['year2'] += ss.amount
+                        if int(ss.semester.name) >= frs+20 and int(ss.semester.name) < frs+30:
+                            received_amt['year3'] += ss.amount
+                        if int(ss.semester.name) >= frs+30 and int(ss.semester.name) < frs+40:
+                            received_amt['year4'] += ss.amount
+                        if int(ss.semester.name) >= frs+40:
+                            received_amt['otheryear'] += ss.amount
+
+
 
             if (type==None or type=='other'):
                 # other funding
@@ -1154,7 +1154,7 @@ class GradStudent(models.Model, ConditionalSaveMixin):
           object.promiseeligible: is eligible to count towards a promise?
         """
         from ta.models import TACourse
-        from ra.models import RAAppointment
+        from ra.models import RAAppointment, RARequest
         
         semesters = {}
         for sem in Semester.objects.filter(name__gte=start.name, name__lte=end.name):
@@ -1186,19 +1186,29 @@ class GradStudent(models.Model, ConditionalSaveMixin):
                     semesters[sem]['ra'].append(ra)
                 sem = sem.next_semester()
         
+        reqs = RARequest.objects.filter(person=self.person, deleted=False, complete=True, draft=False)
+        for ra in reqs:
+            st = ra.start_semester()
+            en = ra.end_semester()
+            ra.semlength = ra.semester_length()
+            if ra.semlength == 0:
+                ra.semlength = 1
+            ra.semvalue = ra.total_pay / ra.semlength
+            ra.promiseeligible = True
+            sem = st
+            while sem <= en:
+                if sem in semesters:
+                    semesters[sem]['ra'].append(ra)
+                sem = sem.next_semester()
+        
         # scholarships
-        scholarships = Scholarship.objects.filter(student=self, start_semester__name__lte=end.name, end_semester__name__gte=start.name)
+        scholarships = GradScholarship.objects.filter(student=self, semester__name__lte=end.name, semester__name__gte=start.name, removed=False)
         for schol in scholarships:
             # annotate object with useful fields
-            schol.semlength = schol.end_semester - schol.start_semester + 1
-            schol.semvalue = schol.amount / schol.semlength
-            schol.promiseeligible = schol.scholarship_type.eligible
-            
-            sem = schol.start_semester
-            while sem <= schol.end_semester:
-                if sem in semesters:
-                    semesters[sem]['scholarship'].append(schol)
-                sem = sem.next_semester()
+            schol.semlength = 1
+            schol.semvalue = schol.amount
+            schol.promiseeligible = schol.eligible
+            semesters[schol.semester]['scholarship'].append(schol)
         
         # other funding
         others = OtherFunding.objects.filter(student=self, semester__name__lte=end.name, semester__name__gte=start.name)

@@ -10,14 +10,12 @@ import discipline.views as discipline_views
 import log.views as log_views
 
 data_patterns = [ # prefix /data/
-#    url(r'^courses/(?P<semester>\d{4})$', dashboard_views.courses_json, name='courses_json'),
     url(r'^offerings$', coredata_views.offerings_search, name='offerings_search'),
     url(r'^offerings_slug$', coredata_views.offerings_slug_search, name='offerings_slug_search'),
     url(r'^offerings_slug/'+SEMESTER+'$', coredata_views.offerings_slug_search, name='offerings_slug_search'),
     url(r'^courses$', coredata_views.course_search, name='course_search'),
     url(r'^offering$', coredata_views.offering_by_id, name='offering_by_id'),
     url(r'^students$', coredata_views.student_search, name='student_search'),
-    #url(r'^sims_people', coredata_views.sims_person_search, name='sims_person_search'),
     url(r'^scholarships/(?P<student_id>\d{9})$', ra_views.search_scholarships_by_student, name='search_scholarships_by_student'),
     url(r'^photos/' + EMPLID_SLUG + '$', grades_views.student_photo, name='student_photo'),
     url(r'^roles/' + EMPLID_SLUG + '$', coredata_views.roles, name='roles'),
@@ -43,6 +41,7 @@ admin_patterns = [ # prefix /admin/
 sysadmin_patterns = [ # prefix /sysadmin/
     url(r'^$', coredata_views.sysadmin, name='sysadmin'),
     url(r'^log/$', log_views.index, name='index'),
+    url(r'^log/csp$', log_views.csp_reports, name='csp_reports'),
     url(r'^roles/$', coredata_views.role_list, name='role_list'),
     url(r'^roles/expired$', coredata_views.expired_role_list, name='expired_role_list'),
     url(r'^roles/(?P<role_id>\d+)/delete$', coredata_views.delete_role, name='delete_role'),
@@ -85,6 +84,9 @@ sysadmin_patterns = [ # prefix /sysadmin/
     url(r'^roleaccount/edit/(?P<roleaccount_id>\d+)$', coredata_views.edit_roleaccount, name='edit_roleaccount'),
     url(r'^logging/$', log_views.log_explore, name='log_explore'),
     url(r'^logging/(?P<log_type>\w+)/(?P<log_id>[0-9a-z\-]+)$', log_views.log_view, name='log_view'),
+    url(r'^frontend-check$', dashboard_views.frontend_check, name='frontend_check'),
+    url(r'^csrpt$', coredata_views.csrpt_auth, name='csrpt_auth'),
+    url(r'^demo_data$', coredata_views.demo_data, name='demo_data'),
 ]
 
 browse_patterns = [ # prefix /browse/

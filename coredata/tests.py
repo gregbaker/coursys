@@ -1,18 +1,33 @@
 from django.test import TestCase
 from haystack.query import SearchQuerySet
+from haystack import connections
 
 from coredata.models import CourseOffering, Semester, Person, SemesterWeek, \
                             Member, Role, Unit, EnrolmentHistory, ROLE_CHOICES
 
+from django.core.management import call_command
 from django.urls import reverse
 
-from courselib.search import haystack_update_index, haystack_clear_index, haystack_rebuild_index
 from courselib.testing import basic_page_tests, validate_content, Client, \
                               TEST_COURSE_SLUG, TEST_ROLE_EXPIRY
 
 from django.db import IntegrityError
 from datetime import date, datetime, timedelta
 import pytz, json
+
+
+# aliases to the haystack management commands, for convenience in tests (should be accomplished with coredata.tasks tools in actual system logic)
+
+def haystack_update_index():
+    call_command("update_index", verbosity=0, remove=True)
+
+
+def haystack_rebuild_index():
+    call_command("rebuild_index", verbosity=0, interactive=False)
+
+
+def haystack_clear_index():
+    call_command("clear_index", verbosity=0, interactive=False)
 
 
 def create_semesters():
@@ -287,7 +302,7 @@ class CoredataTest(TestCase):
         response = client.post(url, {'person':'33333333', 'role':'FAC', 'unit': 2})
         self.assertEqual(response.status_code, 200)
         validate_content(self, response.content, url)
-        self.assertTrue(b"could not import DB2 module" in response.content
+        self.assertTrue(b"could not import pyodbc module" in response.content
                         or b"could not connect to reporting database" in response.content
                         or b"Could not find this emplid." in response.content
                         or b"Reporting database access has been disabled" in response.content
@@ -437,6 +452,10 @@ class SearchTest(TestCase):
         """
         Make sure indexing in Haystack is working as we expect.
         """
+        if 'elasticsearch' in connections['default'].options['ENGINE']:
+            # caching (?) in elasticsearch defeats the sudden update/check tests, so we'll skip it.
+            return
+
         fname = 'TestStudentUnusualName'
         s, c = create_offering()
         # make sure the test semester is reasonably current
@@ -529,3 +548,16 @@ class DependencyTest(TestCase):
 
         n = 100
         self.assertEqual(f('乐' * n), n)
+
+
+class ComposeFilesTest(TestCase):
+    """
+    Test that the compose-*.yml files are as expected.
+    """
+    def test_docker_compose_files_coherence(self):
+        from docker.build_compose import DEPLOYMENT_CONTEXTS, build_from_template
+        for deploy_mode in DEPLOYMENT_CONTEXTS.keys():
+            from_template = build_from_template(deploy_mode)
+            with open(f"compose-{deploy_mode}.yml", "rt", encoding="utf-8") as fh:
+                from_file = fh.read()
+            self.assertEqual(from_file, from_template, f"Contents of compose-{deploy_mode}.yml don't match template. Consider running: ./manage.py build_compose_yml ALL")

@@ -1,111 +1,107 @@
-SYSTEMCTL=sudo systemctl
-SUCOURSYS=sudo -E -u ${COURSYS_USER} HOME=${COURSYS_USER_HOME}
-DOCKERCOMPOSE=${SUCOURSYS} docker-compose
+COURSYS_USER=coursys
 
-# For local development
+GIT=sudo -u ${COURSYS_USER} git
+DOCKERCOMPOSE=docker compose
+# containers where our code runs, which are usually all that need to be rebuilt:
+CODE_CONTAINERS=beat admin manage `${DOCKERCOMPOSE} config --services | grep -e '^app' -e '^celery'`
+GIT_COMMIT=`${GIT} rev-parse --short HEAD || git rev-parse --short HEAD || echo unknown`
 
-devel-runserver:
-	python3 manage.py runserver 0:8000
-devel-celery:
-	celery -A courses -l INFO worker -B
-
-# For production-like development (possibly in a VM)
-
-proddev-start:
-	test `hostname` != 'coursys' && test ${COURSYS_DEPLOY_MODE} != 'production'
-	${DOCKERCOMPOSE} -f docker-compose-proddev.yml up -d
-proddev-restart:
-	test `hostname` != 'coursys' && test ${COURSYS_DEPLOY_MODE} != 'production'
-	${DOCKERCOMPOSE} -f docker-compose-proddev.yml restart
-proddev-stop:
-	test `hostname` != 'coursys' && test ${COURSYS_DEPLOY_MODE} != 'production'
-	${DOCKERCOMPOSE} -f docker-compose-proddev.yml stop
-proddev-rm-all:
-	test `hostname` != 'coursys' && test ${COURSYS_DEPLOY_MODE} != 'production'
-	${DOCKERCOMPOSE} -f docker-compose.yml -f docker-compose-proddev.yml rm
-
-# Production server tasks
 
 start-all:
-	${SYSTEMCTL} start nginx
-	${DOCKERCOMPOSE} up -d
-	${SYSTEMCTL} start gunicorn
-	${SYSTEMCTL} start celery
-	${SYSTEMCTL} start celerybeat
-restart-all:
-	${DOCKERCOMPOSE} restart
-	${SYSTEMCTL} restart gunicorn
-	${SYSTEMCTL} restart celery
-	${SYSTEMCTL} restart celerybeat
-	${SYSTEMCTL} restart nginx
+	${DOCKERCOMPOSE} up -d --remove-orphans
 
 pull:
-	${SUCOURSYS} git pull
+	${GIT} pull
 
-# New code/configuration tasks
+pull-build:
+	${GIT} pull
+	${DOCKERCOMPOSE} pull
+	${DOCKERCOMPOSE} build --build-arg GIT_COMMIT=${GIT_COMMIT} --pull --no-cache
 
-new-code-lite:
-	${SYSTEMCTL} reload gunicorn
-	${SYSTEMCTL} restart celery
-	${SYSTEMCTL} restart celerybeat
+build:
+	${DOCKERCOMPOSE} build --build-arg GIT_COMMIT=${GIT_COMMIT}
 
-new-code:
-	${SUCOURSYS} npm install
-	${SUCOURSYS} python3 manage.py collectstatic --no-input
-	make new-code-lite
+build-code-containers:  # we almost never need containers without our code rebuilt, so don't by default.
+	${DOCKERCOMPOSE} build --build-arg GIT_COMMIT=${GIT_COMMIT} ${CODE_CONTAINERS}
 
-clear-cache:
-	${SUCOURSYS} docker-compose restart memcached
+rollout:  # a zero-downtime switchover from old to new container images, rolling between app-a and app-b
+	# What's happening here: /dynamic_config/nginx-backends.conf is juggled to select app-* backend(s), and SIGHUP to nginx tells it to seamlessly reload its config.
+	# Then while each app-* container is being ignored by nginx, it's restarted.
+	# drain requests to app-a
+	${DOCKERCOMPOSE} run -q --remove-orphans admin cp docker/nginx/backend-configs/drain-a.conf /dynamic_config/nginx-backends.conf
+	${DOCKERCOMPOSE} kill --remove-orphans -s SIGHUP nginx && sleep 5
+	# restart app-a
+	${DOCKERCOMPOSE} up -d --wait --timeout 30 --remove-orphans app-a
+	# drain app-b
+	${DOCKERCOMPOSE} run -q --remove-orphans admin cp docker/nginx/backend-configs/drain-b.conf /dynamic_config/nginx-backends.conf
+	${DOCKERCOMPOSE} kill --remove-orphans -s SIGHUP nginx && sleep 5
+	# restart app-b
+	${DOCKERCOMPOSE} up -d --wait --timeout 30 --remove-orphans app-b
+	# restore default config (using both app-a and app-b)
+	${DOCKERCOMPOSE} run -q --remove-orphans admin cp docker/nginx/backend-configs/default.conf /dynamic_config/nginx-backends.conf
+	${DOCKERCOMPOSE} kill --remove-orphans -s SIGHUP nginx
+
+deploy:
+	${DOCKERCOMPOSE} up -d --wait elasticsearch rabbitmq memcached  # get these (re)started first since other containers depend on them
+	${DOCKERCOMPOSE} run manage collectstatic --no-input
+	make rollout
+	${DOCKERCOMPOSE} up -d --timeout 30 --remove-orphans 	# restart anything else that needs it
+
+deploy-no-rollout:  # skips the smooth "rollout" in favour of a faster "up -d" with a few seconds of downtime
+	${DOCKERCOMPOSE} up -d --wait elasticsearch rabbitmq memcached  # get these (re)started first since other containers depend on them
+	${DOCKERCOMPOSE} run manage collectstatic --no-input
+	${DOCKERCOMPOSE} up -d --timeout 30 --remove-orphans
+
+new-code: build-code-containers deploy
+
+new-code-pull: pull-build deploy
+
+new-code-no-rollout: build-code-containers deploy-no-rollout
 
 migrate-safe:
-	${SUCOURSYS} python3 manage.py backup_db
-	${SUCOURSYS} python3 manage.py migrate
-	${SUCOURSYS} python3 manage.py backup_db
+	${DOCKERCOMPOSE} up -d celery-batch  # make sure the relevant worker is up (so this can be done in 503 mode)
+	${DOCKERCOMPOSE} run manage backup_db_task
+	${DOCKERCOMPOSE} run manage migrate
+	${DOCKERCOMPOSE} run manage backup_db_task
 
-503:
-	${SUCOURSYS} touch ${COURSYS_DIR}/503
-	${SYSTEMCTL} stop celery
-	${SYSTEMCTL} stop celerybeat
+purge-cache:  # if we have changed something in a way that breaks cached data: shouldn't happen, but just in case
+	${DOCKERCOMPOSE} run manage purge_cache
+
+purge-static:  # shouldn't be necessary in general, but just in case we want to tidy the static volume
+	${DOCKERCOMPOSE} run admin touch /dynamic_config/503
+	${DOCKERCOMPOSE} run admin rm -r /static/static
+	${DOCKERCOMPOSE} run manage collectstatic --no-input
+	make purge-cache  # django-compressor caches what has already been built: force it to re-check
+	${DOCKERCOMPOSE} run admin rm /dynamic_config/503
+
+drain-tasks:  # make absolutely sure there are no pending tasks (i.e. that rabbitmq can be purged during an upgrade/migration)
+	${DOCKERCOMPOSE} run admin touch /dynamic_config/503
+	${DOCKERCOMPOSE} stop beat
+	echo "Watch celery_logs until nothing else is being processed. Then you can safely purge/restore rabbitmq and 'make rm503'"
+
+503:  # ensure that the system is down in such a way that no database/file changes are happening
+	${DOCKERCOMPOSE} run admin touch /dynamic_config/503
+	${DOCKERCOMPOSE} stop `${DOCKERCOMPOSE} config --services | grep -e '^celery'` beat
+
 rm503:
-	${SUCOURSYS} rm ${COURSYS_DIR}/503
-	${SYSTEMCTL} start celery
-	${SYSTEMCTL} start celerybeat
-
-rebuild:
-	sudo apt update && sudo apt upgrade
-	sudo pip3 install -r ${COURSYS_DIR}/requirements.txt
-	${DOCKERCOMPOSE} build --pull
+	${DOCKERCOMPOSE} run admin rm /dynamic_config/503
 	${DOCKERCOMPOSE} up -d
-	make new-code
 
-rebuild-hardcore:
-	#make chef
-	${SYSTEMCTL} daemon-reload # catches any changed service definitions
-	make ntpdate
-	${DOCKERCOMPOSE} pull
-	make 503
-	${DOCKERCOMPOSE} restart
-	${SUCOURSYS} rm -rf ${COURSYS_STATIC_DIR}/static # to clear out any orphaned static files and freshen: must purge memcached around the same time so compressor knows to look for changes
-	make rebuild
-	make rm503
-	${SUCOURSYS} docker system prune -f # clear any orphaned docker images/containers
 
-ntpdate:
-	${SYSTEMCTL} stop ntp && (sudo ntpdate ns2.sfu.ca || sudo ntpdate pool.ntp.org) && ${SYSTEMCTL} start ntp
+# admin helpers
 
-chef:
-	sudo chef-solo -c ./deploy/solo.rb -j ./deploy/run-list.json
-
-# Utility helpers
-
-kinit:
-	${SUCOURSYS} ./kinit.sh
-
-manage: # used like: "make manage ARGS=shell"
-	${SUCOURSYS} python3 manage.py $(ARGS)
+compose-yml:
+	python manage.py build_compose_yml ALL
 shell:
-	${SUCOURSYS} python3 manage.py shell
+	${DOCKERCOMPOSE} run manage shell
 dbshell:
-	${SUCOURSYS} python3 manage.py dbshell
-backup_db:
-	${SUCOURSYS} python3 manage.py backup_db
+	${DOCKERCOMPOSE} run manage dbshell
+admin:
+	${DOCKERCOMPOSE} run admin bash
+
+prod-setup:  # helper for individual user setup on the production server
+	sudo gpasswd -a `whoami` docker
+	mkdir -p ~/.docker
+	echo '{ "proxies": { "default": { "httpProxy": "http://bby-vcontrol-proxy.its.sfu.ca:8080", "httpsProxy": "http://bby-vcontrol-proxy.its.sfu.ca:8080", "noProxy": "cas.sfu.ca,.sfu.ca,localhost" } } }' > ~/.docker/config.json
+
+.PHONY: deploy start-all pull pull-build build build-code-containers rollout new-code new-code-pull new-code-no-rollout migrate-safe purge-cache purge-static drain-tasks 503 rm503 compose-yml shell dbshell admin prod-setup
